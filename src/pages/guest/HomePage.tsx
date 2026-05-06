@@ -1,43 +1,63 @@
 import { Link } from 'react-router-dom'
 import Button from '../../components/ui/Button'
-import FeatureCard from '../../components/ui/FeatureCard'
+
+const features = [
+  { title: 'Реакции в реальном времени', description: 'Студенты отправляют мгновенную обратную связь — преподаватель видит настроение аудитории прямо во время лекции.' },
+  { title: 'Квизы на лету', description: 'Создавайте вопросы за секунды прямо во время лекции. Результаты появляются мгновенно на экране.' },
+  { title: 'Аналитика и рейтинги', description: 'Детальная статистика по каждому студенту, курсу и лекции. Экспорт данных в один клик.' },
+  { title: 'Безопасный вход через ИСУ', description: 'Интеграция с институтской системой управления. Никаких лишних паролей.' },
+  { title: 'Геймификация', description: 'Очки, достижения и лидерборды превращают обучение в увлекательный процесс.' },
+  { title: 'Вход по QR-коду', description: 'Студенты присоединяются к лекции за 3 секунды — просто сканируют QR или вводят код.' },
+]
 
 export default function HomePage() {
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="flex flex-col items-center text-center gap-6 py-24 px-4">
-        <h1 className="text-5xl font-bold text-zinc-900 tracking-tight leading-tight max-w-3xl">
-          Современная платформа<br />для управления лекциями
-        </h1>
-        <p className="text-lg text-zinc-500 max-w-xl">
-          Отмечайтесь на лекциях, отслеживайте свой прогресс и получайте доступ к материалам курсов в одном месте
-        </p>
-        <div className="flex gap-4 mt-4">
-          <Link to="/register">
-            <Button size="lg">Начать обучение</Button>
-          </Link>
-          <Link to="/login">
-            <Button variant="outline" size="lg">Войти в аккаунт</Button>
-          </Link>
+      <section className="flex flex-col items-center justify-center min-h-[calc(100vh-140px)] gap-8 px-6">
+        <div className="flex flex-col items-center gap-6 text-center max-w-[825px]">
+          <h1 className="text-6xl md:text-7xl font-semibold tracking-tight">
+            <span className="text-zinc-900">Лекции, которые</span>
+            <br />
+            <span className="text-zinc-400">действительно работают</span>
+          </h1>
+          <p className="text-lg text-zinc-500 max-w-[690px]">
+            Платформа для интерактивных лекций с реакциями, квизами и аналитикой. Студенты вовлечены — преподаватель в курсе.
+          </p>
+        </div>
+        <Link to="/join">
+          <Button size="lg">Присоединиться как гость</Button>
+        </Link>
+      </section>
+
+      <section className="flex flex-col items-center gap-7 py-24 px-6 md:px-36 bg-white">
+        <div className="flex flex-col items-center text-center max-w-[545px]">
+          <h2 className="text-3xl md:text-4xl font-semibold text-zinc-900 tracking-tight">
+            Всё что нужно для живой лекции
+          </h2>
+          <p className="text-lg text-zinc-500 mt-2">
+            Никаких лишних инструментов. Только то, что работает.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 border border-zinc-100 rounded-2xl overflow-hidden max-w-[1064px]">
+          {features.map((f, idx) => (
+            <div key={idx} className="flex flex-col gap-2 px-8 py-14 border border-zinc-100">
+              <h3 className="text-base font-semibold text-zinc-900">{f.title}</h3>
+              <p className="text-sm text-zinc-500 leading-relaxed">{f.description}</p>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="grid grid-cols-3">
-        <FeatureCard
-          title="Управление посещениями"
-          description="Преподаватели могут запускать сессии посещения, а студенты — отмечаться через QR-код. Все данные сохраняются автоматически"
-        />
-        <FeatureCard
-          title="Материалы курсов"
-          description="Загружайте и организуйте лекции, презентации и дополнительные ресурсы для каждого курса"
-        />
-        <FeatureCard
-          title="Аналитика и прогресс"
-          description="Отслеживайте посещаемость, прогресс студентов и другие важные метрики в удобной форме"
-        />
-      </section>
+      <footer className="bg-zinc-50 px-6 md:px-36 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
+        <span className="text-sm font-medium text-zinc-900">LectureHub</span>
+        <span className="text-xs text-zinc-400">© 2025 LectureHub. Все права защищены.</span>
+        <div className="flex gap-5 text-xs text-zinc-400">
+          <Link to="/login" className="hover:text-zinc-600 transition-colors">Войти</Link>
+          <Link to="/register" className="hover:text-zinc-600 transition-colors">Регистрация</Link>
+          <Link to="/join" className="hover:text-zinc-600 transition-colors">Присоединиться</Link>
+        </div>
+      </footer>
     </div>
   )
 }

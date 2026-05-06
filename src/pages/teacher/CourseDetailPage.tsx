@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, QrCode, Settings, Pencil, Trash2, Download, ChevronDown } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, QrCode, Settings, Pencil, Trash2, Download } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
@@ -46,6 +46,7 @@ const gradeItems = [
 ]
 
 export default function TeacherCourseDetailPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState('lectures')
   const [filter, setFilter] = useState('Все')
 
@@ -66,7 +67,6 @@ export default function TeacherCourseDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Назад к курсам
       </Link>
 
-      {/* Course Header */}
       <div className="bg-gradient-to-r from-zinc-900 to-zinc-500 rounded-xl p-8 flex flex-col gap-2 justify-end h-72">
         <h1 className="text-3xl font-bold text-white">Основы программирования на Python</h1>
         <div className="flex items-center gap-3">
@@ -75,11 +75,9 @@ export default function TeacherCourseDetailPage() {
         </div>
       </div>
 
-      {/* Tabs + Content */}
       <div className="bg-white border border-gray-200 rounded-xl">
         <Tabs tabs={courseTabs} active={tab} onChange={setTab} />
 
-        {/* LECTURES TAB */}
         {tab === 'lectures' && (
           <div className="flex flex-col gap-6 p-8">
             <div className="flex items-center justify-between">
@@ -119,7 +117,6 @@ export default function TeacherCourseDetailPage() {
           </div>
         )}
 
-        {/* QUIZZES TAB */}
         {tab === 'quizzes' && (
           <div className="flex flex-col gap-6 p-8">
             <div className="flex items-center justify-between">
@@ -143,7 +140,6 @@ export default function TeacherCourseDetailPage() {
           </div>
         )}
 
-        {/* MATERIALS TAB */}
         {tab === 'materials' && (
           <div className="flex flex-col gap-6 p-8">
             <div className="flex items-center justify-between">
@@ -165,7 +161,6 @@ export default function TeacherCourseDetailPage() {
           </div>
         )}
 
-        {/* MEMBERS TAB */}
         {tab === 'members' && (
           <div className="flex flex-col gap-6 p-8">
             <div className="flex items-center justify-between">
@@ -192,7 +187,6 @@ export default function TeacherCourseDetailPage() {
           </div>
         )}
 
-        {/* GRADES TAB */}
         {tab === 'grades' && (
           <div className="flex flex-col gap-6 p-8">
             <h2 className="text-lg font-semibold text-gray-900">Оценки</h2>
@@ -212,7 +206,6 @@ export default function TeacherCourseDetailPage() {
           </div>
         )}
 
-        {/* SETTINGS TAB */}
         {tab === 'settings' && (
           <div className="flex flex-col gap-6 p-8">
             <h2 className="text-lg font-semibold text-gray-900">Настройки курса</h2>
@@ -225,7 +218,6 @@ export default function TeacherCourseDetailPage() {
         )}
       </div>
 
-      {/* QR Modal */}
       <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR-код и код доступа">
         <div className="flex flex-col items-center gap-4">
           <div className="w-56 h-56 border-2 border-zinc-200 rounded-xl flex items-center justify-center bg-white p-4">
@@ -243,7 +235,6 @@ export default function TeacherCourseDetailPage() {
         </div>
       </Modal>
 
-      {/* Edit Lecture Modal */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Редактировать лекцию">
         <div className="flex flex-col gap-4">
           <Input label="Название" defaultValue="Лекция 1" />
@@ -263,7 +254,6 @@ export default function TeacherCourseDetailPage() {
         </div>
       </Modal>
 
-      {/* Settings Modal */}
       <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Настройки лекции">
         <Input label="Максимум участников" defaultValue="50" />
         <div className="flex gap-4">
@@ -272,7 +262,6 @@ export default function TeacherCourseDetailPage() {
         </div>
       </Modal>
 
-      {/* Delete Modal */}
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Удалить лекцию?">
         <p className="text-sm text-zinc-600">Вы уверены, что хотите удалить лекцию</p>
         <div className="flex gap-4">
@@ -281,7 +270,6 @@ export default function TeacherCourseDetailPage() {
         </div>
       </Modal>
 
-      {/* Start Lecture Modal */}
       <Modal open={startOpen} onClose={() => setStartOpen(false)} title="Начать лекцию?">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-5">
@@ -300,11 +288,10 @@ export default function TeacherCourseDetailPage() {
         </div>
         <div className="flex gap-4">
           <Button variant="secondary" className="flex-1" onClick={() => setStartOpen(false)}>Отмена</Button>
-          <Button className="flex-1">Начать</Button>
+          <Button className="flex-1" onClick={() => { setStartOpen(false); navigate('/teacher/live/active'); }}>Начать</Button>
         </div>
       </Modal>
 
-      {/* Add Lecture Modal */}
       <Modal open={addLectureOpen} onClose={() => setAddLectureOpen(false)} title="Создать лекцию">
         <div className="flex flex-col gap-4">
           <Input label="Название" placeholder="Лекция 1" />
@@ -324,7 +311,6 @@ export default function TeacherCourseDetailPage() {
         </div>
       </Modal>
 
-      {/* Create Quiz Modal */}
       <Modal open={createQuizOpen} onClose={() => setCreateQuizOpen(false)} title="Создать квиз">
         <Input label="Название квиза" placeholder="Введение" />
         <div className="flex gap-4">
@@ -333,7 +319,6 @@ export default function TeacherCourseDetailPage() {
         </div>
       </Modal>
 
-      {/* Invite Link Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Пригласить на курс">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

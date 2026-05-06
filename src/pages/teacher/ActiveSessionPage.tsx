@@ -1,48 +1,159 @@
-import { useState } from 'react'
-import { QrCode, Link as LinkIcon, Clock } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { QrCode, Clock, Users, X, Copy, Check } from 'lucide-react'
 import Button from '../../components/ui/Button'
-
-const topParticipants = [
-  { rank: 1, initials: 'ИФ', name: 'Имя Фамилия', score: 850 },
-  { rank: 2, initials: 'ИФ', name: 'Имя Фамилия', score: 850 },
-  { rank: 3, initials: 'ИФ', name: 'Имя Фамилия', score: 850 },
-  { rank: 4, initials: 'ИФ', name: 'Имя Фамилия', score: 850 },
-  { rank: 5, initials: 'ИФ', name: 'Имя Фамилия', score: 850 },
-]
-
-const reactions = [
-  { name: 'Понятно', count: 24 },
-  { name: 'Непонятно', count: 24 },
-  { name: 'Интересно', count: 24 },
-  { name: 'Скучно', count: 24 },
-]
+import Modal from '../../components/ui/Modal'
+import { sessionsApi } from '../../api/sessions'
+import { reactionsApi } from '../../api/reactions'
+import type { Session, SessionParticipant, ReactionStats } from '../../api/types'
 
 export default function ActiveSessionPage() {
-  const [elapsed] = useState('00:42:18')
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [session, setSession] = useState<Session | null>(location.state?.session || null)
+  const [participants, setParticipants] = useState<SessionParticipant[]>([])
+  const [reactions, setReactions] = useState<ReactionStats>({
+    thumbsUp: 0, heart: 0, clap: 0, thinking: 0, confused: 0, fire: 0
+  })
+  const [elapsed, setElapsed] = useState('00:00:00')
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [endModalOpen, setEndModalOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const formatElapsed = useCallback((startTime: string) => {
+    const start = new Date(startTime).getTime()
+    const now = Date.now()
+    const diff = Math.floor((now - start) / 1000)
+    const hours = Math.floor(diff / 3600).toString().padStart(2, '0')
+    const minutes = Math.floor((diff % 3600) / 60).toString().padStart(2, '0')
+    const seconds = (diff % 60).toString().padStart(2, '0')
+    return `${hours}:${minutes}:${seconds}`
+  }, [])
+
+  useEffect(() => {
+    const loadSession = async () => {
+      if (!session) {
+        try {
+          const activeSession = await sessionsApi.getActiveSession()
+          if (activeSession) {
+            setSession(activeSession)
+          } else {
+            navigate('/teacher/live')
+          }
+        } catch {
+          navigate('/teacher/live')
+        }
+      }
+    }
+    loadSession()
+  }, [session, navigate])
+
+  useEffect(() => {
+    if (!session) return
+
+    const timer = setInterval(() => {
+      setElapsed(formatElapsed(session.started_at))
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [session, formatElapsed])
+
+  useEffect(() => {
+    if (!session) return
+
+    const fetchData = async () => {
+      try {
+        const [participantsData, reactionsData] = await Promise.all([
+          sessionsApi.getSessionParticipants(session.id),
+          reactionsApi.getReactionStats(session.id)
+        ])
+        setParticipants(participantsData)
+        setReactions(reactionsData)
+      } catch (error) {
+        console.error('Failed to fetch session data:', error)
+      }
+    }
+
+    fetchData()
+    const interval = setInterval(fetchData, 5000)
+    return () => clearInterval(interval)
+  }, [session])
+
+  const handleEndSession = async () => {
+    if (!session) return
+    try {
+      await sessionsApi.endSession(session.id)
+      navigate('/teacher/live')
+    } catch (error) {
+      console.error('Failed to end session:', error)
+    }
+  }
+
+  const copyAccessCode = () => {
+    if (session?.access_code) {
+      navigator.clipboard.writeText(session.access_code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  if (!session) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <p className="text-zinc-500">Загрузка...</p>
+      </div>
+    )
+  }
+
+  const reactionsList = [
+    { key: 'thumbsUp', name: 'Понятно', emoji: '👍', count: reactions.thumbsUp },
+    { key: 'confused', name: 'Непонятно', emoji: '😕', count: reactions.confused },
+    { key: 'thinking', name: 'Интересно', emoji: '💡', count: reactions.thinking },
+    { key: 'heart', name: 'Нравится', emoji: '❤️', count: reactions.heart },
+    { key: 'fire', name: 'Огонь', emoji: '🔥', count: reactions.fire },
+    { key: 'clap', name: 'Круто', emoji: '👏', count: reactions.clap },
+  ]
 
   return (
     <div className="flex gap-8 p-8 min-h-screen">
-      {/* Main Content */}
       <div className="flex-1 flex flex-col gap-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-zinc-900">Основы программирования на Python</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Clock className="w-4 h-4 text-zinc-400" />
-              <span className="text-sm text-zinc-500 font-mono">{elapsed}</span>
+            <h1 className="text-2xl font-bold text-zinc-900">Активная сессия</h1>
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-zinc-400" />
+                <span className="text-sm text-zinc-500 font-mono">{elapsed}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-zinc-400" />
+                <span className="text-sm text-zinc-500">{participants.length} участников</span>
+              </div>
+              <div className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                {session.access_code}
+              </div>
             </div>
           </div>
           <div className="flex gap-3">
-            <button className="flex items-center gap-2 px-4 py-2 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+            <button
+              onClick={() => setQrModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+            >
               <QrCode className="w-4 h-4" /> QR / Ссылка
             </button>
-            <button className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors">
+            <button
+              onClick={() => setEndModalOpen(true)}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-medium hover:bg-red-600 transition-colors"
+            >
               Завершить сессию
             </button>
           </div>
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-4">
           <button className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
             Создать квиз
@@ -55,61 +166,92 @@ export default function ActiveSessionPage() {
           </button>
         </div>
 
-        {/* Waiting Area */}
         <div className="bg-zinc-50 rounded-lg flex-1 flex flex-col items-center justify-center gap-2 min-h-[300px]">
           <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
             <Clock className="w-6 h-6 text-zinc-400" />
           </div>
           <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
-          <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
+          <p className="text-xs text-zinc-400">Нажмите "Создать квиз" чтобы начать</p>
         </div>
       </div>
 
-      {/* Sidebar */}
       <div className="w-[400px] flex flex-col gap-6">
-        {/* Top Participants */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-zinc-900">Топ участников</h3>
-            <button className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors">Полный рейтинг →</button>
+            <h3 className="text-sm font-semibold text-zinc-900">Участники ({participants.length})</h3>
           </div>
-          <div className="flex flex-col gap-3">
-            {topParticipants.map((p) => (
-              <div key={p.rank} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-semibold text-zinc-400 w-4">{p.rank}</span>
-                  <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600">{p.initials}</div>
-                  <span className="text-sm font-medium text-zinc-900">{p.name}</span>
+          <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto">
+            {participants.length === 0 ? (
+              <p className="text-sm text-zinc-400 text-center py-4">Пока нет участников</p>
+            ) : (
+              participants.slice(0, 10).map((p, idx) => (
+                <div key={p.id} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-zinc-400 w-4">{idx + 1}</span>
+                    <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600">
+                      {getInitials(p.student_name)}
+                    </div>
+                    <span className="text-sm font-medium text-zinc-900">{p.student_name}</span>
+                  </div>
                 </div>
-                <span className="text-sm font-semibold text-zinc-900">{p.score}</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="h-px bg-zinc-100" />
 
-        {/* Reactions */}
         <div className="flex flex-col gap-4">
           <h3 className="text-sm font-semibold text-zinc-900">Реакции</h3>
-          <div className="flex flex-col gap-4">
-            {reactions.map((r) => (
-              <div key={r.name} className="bg-white border border-zinc-200 rounded-lg px-3 py-3 flex items-center gap-4">
-                <div className="w-12 h-12 bg-zinc-100 rounded-lg flex items-center justify-center text-lg">
-                  {r.name === 'Понятно' && '👍'}
-                  {r.name === 'Непонятно' && '😕'}
-                  {r.name === 'Интересно' && '⭐'}
-                  {r.name === 'Скучно' && '😴'}
+          <div className="grid grid-cols-2 gap-3">
+            {reactionsList.map((r) => (
+              <div key={r.key} className="bg-white border border-zinc-200 rounded-lg px-3 py-3 flex items-center gap-3">
+                <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center text-lg">
+                  {r.emoji}
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium text-zinc-900">{r.name}</span>
-                  <span className="text-xs text-zinc-400">{r.count} реакций</span>
+                  <span className="text-xs text-zinc-500">{r.name}</span>
+                  <span className="text-lg font-semibold text-zinc-900">{r.count}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
       </div>
+
+      <Modal open={qrModalOpen} onClose={() => setQrModalOpen(false)} title="Код доступа">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-48 h-48 bg-zinc-100 rounded-lg flex items-center justify-center">
+            <QrCode className="w-32 h-32 text-zinc-400" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm text-zinc-500 mb-2">Код доступа:</p>
+            <div className="flex items-center gap-2 justify-center">
+              <span className="text-4xl font-bold text-zinc-900 tracking-wider">{session.access_code}</span>
+              <button onClick={copyAccessCode} className="p-2 hover:bg-zinc-100 rounded-lg transition-colors">
+                {copied ? <Check className="w-5 h-5 text-green-500" /> : <Copy className="w-5 h-5 text-zinc-400" />}
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400 text-center">
+            Студенты могут присоединиться по адресу lecturehub.app/join
+          </p>
+        </div>
+      </Modal>
+
+      <Modal open={endModalOpen} onClose={() => setEndModalOpen(false)} title="Завершить сессию?">
+        <p className="text-sm text-zinc-600 mb-4">
+          Вы уверены, что хотите завершить сессию? Все участники будут отключены.
+        </p>
+        <div className="flex gap-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setEndModalOpen(false)}>
+            Отмена
+          </Button>
+          <Button variant="danger" className="flex-1" onClick={handleEndSession}>
+            Завершить
+          </Button>
+        </div>
+      </Modal>
     </div>
   )
 }

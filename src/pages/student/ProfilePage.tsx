@@ -14,7 +14,6 @@ export default function StudentProfilePage() {
   return (
     <div className="flex flex-col justify-between h-full">
       <div className="flex flex-col gap-10 p-8">
-        {/* Profile Header */}
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-5">
@@ -34,7 +33,6 @@ export default function StudentProfilePage() {
           </Link>
         </div>
 
-        {/* Statistics */}
         <div className="flex flex-col gap-4">
           <h2 className="text-base font-semibold text-zinc-900">Статистика</h2>
           <div className="flex gap-8">
@@ -44,7 +42,6 @@ export default function StudentProfilePage() {
           </div>
         </div>
 
-        {/* Activity History */}
         <div className="flex flex-col gap-4">
           <h2 className="text-base font-semibold text-zinc-900">История активности</h2>
           <div className="flex flex-col gap-2">
@@ -60,7 +57,6 @@ export default function StudentProfilePage() {
         </div>
       </div>
 
-      {/* Logout */}
       <div className="flex items-center justify-center py-6">
         <button className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors">
           Выйти

@@ -1,0 +1,32 @@
+import api from './client'
+import type { Session, SessionWithLecture, SessionParticipant, CompletedSession } from './types'
+
+export const sessionsApi = {
+  startSession: (lectureId: string): Promise<Session> => {
+    return api.post<Session>('/sessions/start', { lecture_id: lectureId })
+  },
+
+  joinSession: (accessCode: string): Promise<SessionWithLecture> => {
+    return api.post<SessionWithLecture>('/sessions/join', { access_code: accessCode })
+  },
+
+  getActiveSession: (): Promise<Session | null> => {
+    return api.get<Session | null>('/sessions/active')
+  },
+
+  getSession: (sessionId: string): Promise<Session> => {
+    return api.get<Session>(`/sessions/${sessionId}`)
+  },
+
+  endSession: (sessionId: string): Promise<CompletedSession> => {
+    return api.post<CompletedSession>(`/sessions/${sessionId}/end`)
+  },
+
+  getSessionParticipants: (sessionId: string): Promise<SessionParticipant[]> => {
+    return api.get<SessionParticipant[]>(`/sessions/${sessionId}/participants`)
+  },
+
+  getSessionHistory: (sessionId: string): Promise<CompletedSession[]> => {
+    return api.get<CompletedSession[]>(`/sessions/history?session_id=${sessionId}`)
+  },
+}

@@ -14,7 +14,6 @@ export default function LectureLivePage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
       <div className="border-b border-zinc-100 px-8 py-4 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-zinc-900">Основы программирования на Python</h1>
@@ -29,7 +28,6 @@ export default function LectureLivePage() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
@@ -40,7 +38,6 @@ export default function LectureLivePage() {
         </div>
       </div>
 
-      {/* Reaction Bar */}
       <div className="border-t border-zinc-100 px-8 py-4 flex items-center justify-center gap-6">
         {reactionButtons.map(({ key, label, icon: Icon }) => (
           <button
