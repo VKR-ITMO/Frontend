@@ -7,7 +7,6 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string, fullName: string, role: string) => Promise<boolean>
   logout: () => void
   isAuthenticated: boolean
 }
@@ -22,13 +21,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const initAuth = async () => {
       const token = localStorage.getItem('access_token')
       if (token) {
+        api.setToken(token)
         try {
           const currentUser = await authApi.me()
           setUser(currentUser)
         } catch {
           api.setToken(null)
           localStorage.removeItem('access_token')
-          localStorage.removeItem('refresh_token')
         }
       }
       setIsLoading(false)
@@ -41,31 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authApi.login(email, password)
       setUser(response.user)
       return true
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error)
       return false
     }
   }
 
-  const register = async (email: string, password: string, fullName: string, role: string): Promise<boolean> => {
-    try {
-      const response = await authApi.register(email, password, fullName, role)
-      setUser(response.user)
-      return true
-    } catch {
-      return false
-    }
-  }
-
-  const logout = async () => {
-    try {
-      await authApi.logout()
-    } finally {
-      setUser(null)
-    }
+  const logout = () => {
+    authApi.logout()
+    setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   )

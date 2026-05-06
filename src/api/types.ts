@@ -9,10 +9,14 @@ export interface User {
   created_at: string
 }
 
-export interface AuthResponse {
-  user: User
+export interface TokenResponse {
   access_token: string
-  refresh_token: string
+  token_type: string
+}
+
+export interface AuthMeResponse {
+  username: string
+  id: string
 }
 
 export interface StudentStats {
@@ -141,7 +145,7 @@ export interface SessionJoin {
   access_code: string
 }
 
-export type ReactionType = 'thumbsUp' | 'heart' | 'clap' | 'thinking' | 'confused' | 'fire'
+export type ReactionType = 'THUMBS_UP' | 'HEART' | 'CLAP' | 'THINKING' | 'CONFUSED' | 'FIRE'
 
 export interface Reaction {
   id: string
@@ -152,12 +156,13 @@ export interface Reaction {
 }
 
 export interface ReactionStats {
-  thumbsUp: number
-  heart: number
-  clap: number
-  thinking: number
-  confused: number
-  fire: number
+  THUMBS_UP: number
+  HEART: number
+  CLAP: number
+  THINKING: number
+  CONFUSED: number
+  FIRE: number
+  total: number
 }
 
 export interface Quiz {

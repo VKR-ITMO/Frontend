@@ -201,12 +201,12 @@ export default function StudentLiveSessionPage() {
         </div>
 
         <div className="grid grid-cols-3 gap-4 max-w-md">
-          <ReactionButton icon={<ThumbsUp />} label="Понятно" onClick={() => sendReaction('thumbsUp')} />
-          <ReactionButton icon={<Heart />} label="Нравится" onClick={() => sendReaction('heart')} />
-          <ReactionButton icon={<HandMetal />} label="Круто" onClick={() => sendReaction('clap')} />
-          <ReactionButton icon={<Lightbulb />} label="Интересно" onClick={() => sendReaction('thinking')} />
-          <ReactionButton icon={<HelpCircle />} label="Не понял" onClick={() => sendReaction('confused')} />
-          <ReactionButton icon={<Flame />} label="Огонь" onClick={() => sendReaction('fire')} />
+          <ReactionButton icon={<ThumbsUp />} label="Понятно" onClick={() => sendReaction('THUMBS_UP')} />
+          <ReactionButton icon={<Heart />} label="Нравится" onClick={() => sendReaction('HEART')} />
+          <ReactionButton icon={<HandMetal />} label="Круто" onClick={() => sendReaction('CLAP')} />
+          <ReactionButton icon={<Lightbulb />} label="Интересно" onClick={() => sendReaction('THINKING')} />
+          <ReactionButton icon={<HelpCircle />} label="Не понял" onClick={() => sendReaction('CONFUSED')} />
+          <ReactionButton icon={<Flame />} label="Огонь" onClick={() => sendReaction('FIRE')} />
         </div>
       </div>
 
