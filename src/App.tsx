@@ -9,6 +9,7 @@ import HomePage from './pages/guest/HomePage'
 import LoginPage from './pages/guest/LoginPage'
 import RegisterPage from './pages/guest/RegisterPage'
 import ForgotPasswordPage from './pages/guest/ForgotPasswordPage'
+import JoinSessionPage from './pages/guest/JoinSessionPage'
 
 import StudentDashboardPage from './pages/student/DashboardPage'
 import StudentCoursesPage from './pages/student/CoursesPage'
@@ -29,22 +30,24 @@ import TeacherEditProfilePage from './pages/teacher/EditProfilePage'
 import LiveSessionPage from './pages/teacher/LiveSessionPage'
 import ActiveSessionPage from './pages/teacher/ActiveSessionPage'
 
+import StudentLiveSessionPage from './pages/session/StudentLiveSessionPage'
+
 export default function App() {
   return (
     <Routes>
-      {/* Guest Pages */}
       <Route element={<GuestLayout />}>
         <Route path="/" element={<HomePage />} />
       </Route>
 
-      {/* Auth Pages */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
-      {/* Student Pages */}
+      <Route path="/join" element={<JoinSessionPage />} />
+      <Route path="/session/:sessionId/live" element={<StudentLiveSessionPage />} />
+
       <Route path="/student" element={<StudentLayout />}>
         <Route index element={<StudentDashboardPage />} />
         <Route path="courses" element={<StudentCoursesPage />} />
@@ -56,7 +59,6 @@ export default function App() {
         <Route path="profile/edit" element={<StudentEditProfilePage />} />
       </Route>
 
-      {/* Teacher Pages */}
       <Route path="/teacher" element={<TeacherLayout />}>
         <Route index element={<TeacherDashboardPage />} />
         <Route path="courses" element={<TeacherCoursesPage />} />

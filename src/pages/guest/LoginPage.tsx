@@ -1,12 +1,38 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { GraduationCap } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import RoleToggle from '../../components/ui/RoleToggle'
+import { useAuth, getRedirectPath } from '../../contexts/AuthContext'
 
 export default function LoginPage() {
   const [role, setRole] = useState('Студент')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  
+  const { login, user } = useAuth()
+  const navigate = useNavigate()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    const success = await login(email, password)
+    setIsLoading(false)
+
+    if (success && user) {
+      navigate(getRedirectPath(user.role))
+    } else if (success) {
+      const roleMap: Record<string, string> = { 'Студент': '/student', 'Преподаватель': '/teacher' }
+      navigate(roleMap[role] || '/student')
+    } else {
+      setError('Неверный email или пароль')
+    }
+  }
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col items-center gap-8 p-4">
@@ -22,10 +48,25 @@ export default function LoginPage() {
 
       <RoleToggle roles={['Студент', 'Преподаватель']} activeRole={role} onChange={setRole} />
 
-      <form className="flex flex-col gap-4 w-full">
-        <Input label="Почта" type="email" placeholder="name@example.com" />
-        <Input label="Пароль" type="password" placeholder="••••••••" />
-        <Button fullWidth>Войти</Button>
+      <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit}>
+        <Input 
+          label="Почта" 
+          type="email" 
+          placeholder="name@example.com" 
+          value={email}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+        />
+        <Input 
+          label="Пароль" 
+          type="password" 
+          placeholder="••••••••" 
+          value={password}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+        />
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <Button fullWidth disabled={isLoading}>
+          {isLoading ? 'Вход...' : 'Войти'}
+        </Button>
       </form>
 
       <div className="flex flex-col items-center gap-2 text-sm">

@@ -17,7 +17,6 @@ export default function StudentCourseDetailPage() {
 
   return (
     <div className="flex flex-col">
-      {/* Header with back button */}
       <div className="border-b border-zinc-200 px-8 py-4">
         <Link to="/student/courses" className="flex items-center gap-2 text-zinc-600 hover:text-zinc-900 transition-colors">
           <ArrowLeft className="w-5 h-5" />
@@ -26,7 +25,6 @@ export default function StudentCourseDetailPage() {
       </div>
 
       <div className="p-8 flex flex-col gap-8">
-        {/* Course Info */}
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div>
@@ -49,7 +47,6 @@ export default function StudentCourseDetailPage() {
           </div>
         </div>
 
-        {/* Tabs */}
         <div>
           <div className="flex gap-6 border-b border-zinc-100">
             {tabs.map((tab) => (
@@ -67,7 +64,6 @@ export default function StudentCourseDetailPage() {
             ))}
           </div>
 
-          {/* Materials Tab */}
           {activeTab === 'Материалы' && (
             <div className="flex flex-col gap-3 mt-6">
               {materials.map((material) => (
@@ -92,7 +88,6 @@ export default function StudentCourseDetailPage() {
             </div>
           )}
 
-          {/* Progress Tab */}
           {activeTab === 'Прогресс' && (
             <div className="flex flex-col gap-6 mt-6">
               <div className="flex flex-col gap-2">

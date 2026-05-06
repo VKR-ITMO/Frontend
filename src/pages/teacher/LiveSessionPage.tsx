@@ -1,33 +1,106 @@
-import { useState } from 'react'
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { ChevronDown, ChevronUp, Plus } from 'lucide-react'
 import Button from '../../components/ui/Button'
+import Input from '../../components/ui/Input'
+import Modal from '../../components/ui/Modal'
+import { coursesApi } from '../../api/courses'
+import { lecturesApi } from '../../api/lectures'
+import { sessionsApi } from '../../api/sessions'
+import type { Course, Lecture } from '../../api/types'
 
-const courses = [
-  {
-    id: 1,
-    title: 'Алгоритмы и структуры данных',
-    code: 'CS101',
-    lectureCount: 2,
-    studentCount: 45,
-    lectures: [
-      { id: 1, title: 'Введение в алгоритмы', number: 'Лекция 1', date: '15 янв.', time: '10:00' },
-      { id: 2, title: 'Введение в алгоритмы', number: 'Лекция 1', date: '17 янв.', time: '10:00' },
-    ],
-  },
-  {
-    id: 2,
-    title: 'Алгоритмы и структуры данных',
-    code: 'CS101',
-    lectureCount: 2,
-    studentCount: 45,
-    lectures: [
-      { id: 3, title: 'Сортировки', number: 'Лекция 2', date: '20 янв.', time: '10:00' },
-    ],
-  },
-]
+interface CourseWithLectures extends Course {
+  lectures: Lecture[]
+}
 
 export default function LiveSessionPage() {
-  const [expanded, setExpanded] = useState<number | null>(null)
+  const navigate = useNavigate()
+  const [courses, setCourses] = useState<CourseWithLectures[]>([])
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [startingSession, setStartingSession] = useState<string | null>(null)
+  const [freeLectureModal, setFreeLectureModal] = useState(false)
+  const [freeLectureTopic, setFreeLectureTopic] = useState('')
+  const [creatingFreeLecture, setCreatingFreeLecture] = useState(false)
+
+  useEffect(() => {
+    const checkActiveSession = async () => {
+      try {
+        const activeSession = await sessionsApi.getActiveSession()
+        if (activeSession) {
+          navigate('/teacher/live/active', { state: { session: activeSession } })
+          return
+        }
+      } catch {
+        // No active session
+      }
+    }
+    checkActiveSession()
+  }, [navigate])
+
+  useEffect(() => {
+    const loadCourses = async () => {
+      try {
+        const coursesData = await coursesApi.getCourses('teacher')
+        const coursesWithLectures: CourseWithLectures[] = await Promise.all(
+          coursesData.map(async (course) => {
+            const lectures = await lecturesApi.getCourseLectures(course.id)
+            return { ...course, lectures }
+          })
+        )
+        setCourses(coursesWithLectures)
+      } catch (error) {
+        console.error('Failed to load courses:', error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadCourses()
+  }, [])
+
+  const startSession = async (lectureId: string) => {
+    setStartingSession(lectureId)
+    try {
+      const session = await sessionsApi.startSession(lectureId)
+      navigate('/teacher/live/active', { state: { session } })
+    } catch (error) {
+      console.error('Failed to start session:', error)
+      setStartingSession(null)
+    }
+  }
+
+  const createFreeLecture = async () => {
+    if (!freeLectureTopic.trim()) return
+    setCreatingFreeLecture(true)
+    try {
+      const lecture = await lecturesApi.createFreeLecture(freeLectureTopic)
+      const session = await sessionsApi.startSession(lecture.id)
+      navigate('/teacher/live/active', { state: { session } })
+    } catch (error) {
+      console.error('Failed to create free lecture:', error)
+      setCreatingFreeLecture(false)
+    }
+  }
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  }
+
+  const formatTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return ''
+    const date = new Date(dateStr)
+    return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-screen">
+        <p className="text-zinc-500">Загрузка...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 flex items-center justify-center min-h-screen">
@@ -37,54 +110,97 @@ export default function LiveSessionPage() {
           <p className="text-sm text-zinc-500">Выберите лекцию из одного из ваших курсов, чтобы начать прямой эфир со студентами</p>
         </div>
 
-        {/* Create new lecture */}
         <div className="bg-white border border-zinc-100 rounded-xl p-4 flex items-center justify-between w-full">
-          <span className="text-sm font-semibold text-zinc-900">Создать лекцию</span>
-          <Button size="sm">Начать</Button>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center">
+              <Plus className="w-5 h-5 text-zinc-500" />
+            </div>
+            <span className="text-sm font-semibold text-zinc-900">Быстрая лекция (без курса)</span>
+          </div>
+          <Button size="sm" onClick={() => setFreeLectureModal(true)}>Начать</Button>
         </div>
 
         <div className="h-px bg-zinc-100 w-full" />
 
-        {/* Course list */}
-        <div className="flex flex-col gap-7 w-full">
-          {courses.map((course) => (
-            <div key={course.id} className="bg-white border border-zinc-100 rounded-xl p-4 flex flex-col gap-4">
-              <button onClick={() => setExpanded(expanded === course.id ? null : course.id)} className="flex items-center justify-between w-full text-left">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-zinc-900">{course.title}</span>
-                  <div className="flex gap-6 text-xs text-zinc-400">
-                    <span>{course.code}</span>
-                    <span>{course.lectureCount} лекций</span>
-                    <span>{course.studentCount} студентов</span>
+        {courses.length === 0 ? (
+          <p className="text-sm text-zinc-400">У вас пока нет курсов с лекциями</p>
+        ) : (
+          <div className="flex flex-col gap-7 w-full">
+            {courses.map((course) => (
+              <div key={course.id} className="bg-white border border-zinc-100 rounded-xl p-4 flex flex-col gap-4">
+                <button onClick={() => setExpanded(expanded === course.id ? null : course.id)} className="flex items-center justify-between w-full text-left">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm font-semibold text-zinc-900">{course.name}</span>
+                    <div className="flex gap-6 text-xs text-zinc-400">
+                      <span>{course.code}</span>
+                      <span>{course.lectures.length} лекций</span>
+                    </div>
                   </div>
-                </div>
-                {expanded === course.id ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
-              </button>
+                  {expanded === course.id ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
+                </button>
 
-              {expanded === course.id && (
-                <>
-                  <div className="h-px bg-zinc-100" />
-                  <div className="flex flex-col gap-4">
-                    {course.lectures.map((lec) => (
-                      <div key={lec.id} className="flex items-center justify-between">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium text-zinc-900 truncate">{lec.title}</span>
-                          <div className="flex gap-4 text-xs text-zinc-400">
-                            <span>{lec.number}</span>
-                            <span>{lec.date}</span>
-                            <span>{lec.time}</span>
+                {expanded === course.id && (
+                  <>
+                    <div className="h-px bg-zinc-100" />
+                    {course.lectures.length === 0 ? (
+                      <p className="text-sm text-zinc-400 text-center py-2">Нет лекций</p>
+                    ) : (
+                      <div className="flex flex-col gap-4">
+                        {course.lectures.filter(l => l.status === 'PUBLISHED').map((lec, idx) => (
+                          <div key={lec.id} className="flex items-center justify-between">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-medium text-zinc-900 truncate">{lec.topic}</span>
+                              <div className="flex gap-4 text-xs text-zinc-400">
+                                <span>Лекция {idx + 1}</span>
+                                {lec.scheduled_at && (
+                                  <>
+                                    <span>{formatDate(lec.scheduled_at)}</span>
+                                    <span>{formatTime(lec.scheduled_at)}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <Button 
+                              size="sm" 
+                              onClick={() => startSession(lec.id)}
+                              disabled={startingSession === lec.id}
+                            >
+                              {startingSession === lec.id ? 'Запуск...' : 'Начать'}
+                            </Button>
                           </div>
-                        </div>
-                        <Button size="sm">Начать</Button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
-        </div>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      <Modal open={freeLectureModal} onClose={() => setFreeLectureModal(false)} title="Быстрая лекция">
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Тема лекции"
+            placeholder="Введите тему"
+            value={freeLectureTopic}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFreeLectureTopic(e.target.value)}
+          />
+          <div className="flex gap-4">
+            <Button variant="secondary" className="flex-1" onClick={() => setFreeLectureModal(false)}>
+              Отмена
+            </Button>
+            <Button 
+              className="flex-1" 
+              onClick={createFreeLecture}
+              disabled={creatingFreeLecture || !freeLectureTopic.trim()}
+            >
+              {creatingFreeLecture ? 'Создание...' : 'Начать'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -95,10 +95,8 @@ export default function QuizEditorPage() {
         </div>
       )}
 
-      {/* Add Question Modal */}
       <Modal open={addOpen} onClose={() => { setAddOpen(false); resetForm() }} title="Добавить вопрос" width="w-[520px]">
         <div className="flex flex-col gap-4">
-          {/* Question Type Selector */}
           <div className="flex flex-col gap-2">
             <label className="text-xs font-medium text-zinc-900 tracking-wide">Тип вопроса</label>
             <div className="flex flex-wrap gap-2">
@@ -113,7 +111,6 @@ export default function QuizEditorPage() {
           <Input label="Текст вопроса" value={formText} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormText(e.target.value)} placeholder="Введите вопрос" />
           <Input label="Баллы" value={formPoints} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormPoints(e.target.value)} placeholder="10" />
 
-          {/* Single / Multiple Choice Options */}
           {(selectedType === 'single' || selectedType === 'multiple') && (
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-zinc-900 tracking-wide">Варианты ответа</label>
@@ -139,7 +136,6 @@ export default function QuizEditorPage() {
             </div>
           )}
 
-          {/* Matching */}
           {selectedType === 'matching' && (
             <div className="flex gap-4">
               <div className="flex-1 flex flex-col gap-2">
@@ -159,7 +155,6 @@ export default function QuizEditorPage() {
             </div>
           )}
 
-          {/* Ordering */}
           {selectedType === 'ordering' && (
             <div className="flex flex-col gap-2">
               <label className="text-xs font-medium text-zinc-900 tracking-wide">Элементы (в правильном порядке)</label>
@@ -173,7 +168,6 @@ export default function QuizEditorPage() {
             </div>
           )}
 
-          {/* File Upload */}
           {selectedType === 'file' && (
             <div className="bg-zinc-50 rounded-lg p-6 text-center">
               <p className="text-sm text-zinc-500">Студенты загрузят файл в качестве ответа</p>

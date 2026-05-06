@@ -21,7 +21,6 @@ export default function StudentDashboardPage() {
         </p>
       </div>
 
-      {/* Active Session Banner */}
       <div className="bg-zinc-900 rounded-2xl p-6 flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -44,7 +43,6 @@ export default function StudentDashboardPage() {
         </div>
       </div>
 
-      {/* Courses List */}
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <h2 className="text-base font-semibold text-zinc-900">Мои курсы</h2>
