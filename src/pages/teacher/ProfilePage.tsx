@@ -1,11 +1,21 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Mail, BookOpen, Users, Clock } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import StatCard from '../../components/ui/StatCard'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function TeacherProfilePage() {
+  const { logout, user } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
+
   return (
-    <div className="flex flex-col gap-8 p-8">
+    <div className="flex flex-col justify-between h-full">
+      <div className="flex flex-col gap-8 p-8">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-6">
           <div className="w-24 h-24 rounded-full bg-zinc-200" />
@@ -46,6 +56,16 @@ export default function TeacherProfilePage() {
             </div>
           ))}
         </div>
+      </div>
+      </div>
+
+      <div className="flex items-center justify-center py-6">
+        <button 
+          onClick={handleLogout}
+          className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+        >
+          Выйти
+        </button>
       </div>
     </div>
   )
