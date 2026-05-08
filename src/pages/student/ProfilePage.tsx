@@ -1,8 +1,16 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import StatCard from '../../components/ui/StatCard'
 import ActivityItem from '../../components/ui/ActivityItem'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function StudentProfilePage() {
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/login')
+  }
   const activities = [
     { subject: 'Информатика', date: '15 Мая, 10:00', score: '85 баллов' },
     { subject: 'Базы данных', date: '14 Мая, 14:00', score: '92 баллов' },
@@ -58,7 +66,10 @@ export default function StudentProfilePage() {
       </div>
 
       <div className="flex items-center justify-center py-6">
-        <button className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors">
+        <button 
+          onClick={handleLogout}
+          className="text-sm font-medium text-red-600 hover:text-red-700 transition-colors"
+        >
           Выйти
         </button>
       </div>

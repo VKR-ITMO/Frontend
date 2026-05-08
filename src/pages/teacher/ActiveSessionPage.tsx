@@ -13,7 +13,7 @@ export default function ActiveSessionPage() {
   const [session, setSession] = useState<Session | null>(location.state?.session || null)
   const [participants, setParticipants] = useState<SessionParticipant[]>([])
   const [reactions, setReactions] = useState<ReactionStats>({
-    thumbsUp: 0, heart: 0, clap: 0, thinking: 0, confused: 0, fire: 0
+    THUMBS_UP: 0, HEART: 0, CLAP: 0, THINKING: 0, CONFUSED: 0, FIRE: 0, total: 0
   })
   const [elapsed, setElapsed] = useState('00:00:00')
   const [qrModalOpen, setQrModalOpen] = useState(false)
@@ -110,12 +110,12 @@ export default function ActiveSessionPage() {
   }
 
   const reactionsList = [
-    { key: 'thumbsUp', name: 'Понятно', emoji: '👍', count: reactions.thumbsUp },
-    { key: 'confused', name: 'Непонятно', emoji: '😕', count: reactions.confused },
-    { key: 'thinking', name: 'Интересно', emoji: '💡', count: reactions.thinking },
-    { key: 'heart', name: 'Нравится', emoji: '❤️', count: reactions.heart },
-    { key: 'fire', name: 'Огонь', emoji: '🔥', count: reactions.fire },
-    { key: 'clap', name: 'Круто', emoji: '👏', count: reactions.clap },
+    { key: 'THUMBS_UP', name: 'Понятно', emoji: '👍', count: reactions.THUMBS_UP },
+    { key: 'CONFUSED', name: 'Непонятно', emoji: '😕', count: reactions.CONFUSED },
+    { key: 'THINKING', name: 'Интересно', emoji: '💡', count: reactions.THINKING },
+    { key: 'HEART', name: 'Нравится', emoji: '❤️', count: reactions.HEART },
+    { key: 'FIRE', name: 'Огонь', emoji: '🔥', count: reactions.FIRE },
+    { key: 'CLAP', name: 'Круто', emoji: '👏', count: reactions.CLAP },
   ]
 
   return (
