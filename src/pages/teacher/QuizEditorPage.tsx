@@ -1,9 +1,11 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, HelpCircle, Plus, Trash2, GripVertical } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, HelpCircle, Plus, Trash2, GripVertical, Save } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
+import { quizzesApi } from '../../api/quizzes'
+import type { Quiz, QuizWithQuestions } from '../../api/types'
 
 type QuestionType = 'single' | 'multiple' | 'matching' | 'ordering' | 'file'
 
@@ -16,16 +18,53 @@ const questionTypeLabels: Record<QuestionType, string> = {
 }
 
 interface Question {
-  id: number
+  id: string
   type: QuestionType
   text: string
   points: number
+  options?: string[]
+  correctAnswers?: number[]
 }
 
 export default function QuizEditorPage() {
+  const { courseId, quizId } = useParams<{ courseId: string; quizId: string }>()
+  const navigate = useNavigate()
+  const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
+  const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [selectedType, setSelectedType] = useState<QuestionType>('single')
+  const [quizTitle, setQuizTitle] = useState('')
+  const [quizDescription, setQuizDescription] = useState('')
+
+  useEffect(() => {
+    if (quizId) loadQuiz()
+  }, [quizId])
+
+  const loadQuiz = async () => {
+    if (!quizId) return
+    try {
+      setLoading(true)
+      const data = await quizzesApi.getQuiz(quizId)
+      setQuiz(data)
+      setQuizTitle(data.title)
+      setQuizDescription(data.description || '')
+    } catch (error) {
+      console.error('Failed to load quiz:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSaveQuiz = async () => {
+    if (!quizId) return
+    try {
+      await quizzesApi.updateQuiz(quizId, { title: quizTitle })
+      navigate(`/teacher/courses/${courseId}`)
+    } catch (error) {
+      console.error('Failed to save quiz:', error)
+    }
+  }
 
   const [formText, setFormText] = useState('')
   const [formPoints, setFormPoints] = useState('10')
@@ -47,24 +86,38 @@ export default function QuizEditorPage() {
   }
 
   const addQuestion = () => {
-    setQuestions([...questions, { id: Date.now(), type: selectedType, text: formText, points: parseInt(formPoints) || 10 }])
+    setQuestions([...questions, { id: Date.now().toString(), type: selectedType, text: formText, points: parseInt(formPoints) || 10 }])
     setAddOpen(false)
     resetForm()
   }
 
-  const removeQuestion = (id: number) => setQuestions(questions.filter((q) => q.id !== id))
+  const removeQuestion = (id: string) => setQuestions(questions.filter((q) => q.id !== id))
 
   const questionTypes: QuestionType[] = ['single', 'multiple', 'matching', 'ordering', 'file']
 
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen"><p className="text-zinc-500">Загрузка...</p></div>
+  }
+
   return (
     <div className="flex flex-col gap-8 p-8 min-h-screen">
-      <Link to="/teacher/courses/1" className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors w-fit">
-        <ArrowLeft className="w-4 h-4" /> Назад
+      <Link to={`/teacher/courses/${courseId}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors w-fit">
+        <ArrowLeft className="w-4 h-4" /> Назад к курсу
       </Link>
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900 tracking-tight">Квиз: Введение</h1>
-        <Button onClick={() => setAddOpen(true)}>+ Добавить вопрос</Button>
+        <div className="flex flex-col gap-2">
+          <Input 
+            value={quizTitle}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuizTitle(e.target.value)}
+            className="text-2xl font-semibold"
+            placeholder="Название квиза"
+          />
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={() => setAddOpen(true)}>+ Добавить вопрос</Button>
+          <Button variant="secondary" onClick={handleSaveQuiz}><Save className="w-4 h-4 mr-2" /> Сохранить</Button>
+        </div>
       </div>
 
       {questions.length === 0 ? (

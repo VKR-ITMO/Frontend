@@ -14,7 +14,7 @@ export const quizzesApi = {
     return api.post<Quiz>('/quizzes', data)
   },
 
-  updateQuiz: (quizId: string, data: { title?: string; questions?: unknown[] }): Promise<Quiz> => {
+  updateQuiz: (quizId: string, data: { title?: string; description?: string; questions?: unknown[] }): Promise<Quiz> => {
     return api.put<Quiz>(`/quizzes/${quizId}`, data)
   },
 

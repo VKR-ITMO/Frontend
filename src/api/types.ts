@@ -30,11 +30,12 @@ export type CourseStatus = 'ACTIVE' | 'ARCHIVED'
 
 export interface Course {
   id: string
+  teacher_id: string
   name: string
   code: string
   description?: string | null
   semester: string
-  teacher_id: string
+  image_url?: string | null
   status: CourseStatus
   created_at: string
 }
@@ -49,6 +50,7 @@ export interface CourseCreate {
   code: string
   description?: string
   semester: string
+  image_url?: string
 }
 
 export interface CourseUpdate {
@@ -56,6 +58,7 @@ export interface CourseUpdate {
   code?: string
   description?: string
   semester?: string
+  image_url?: string
   status?: CourseStatus
 }
 

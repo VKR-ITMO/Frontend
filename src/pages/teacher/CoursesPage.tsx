@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Upload } from 'lucide-react'
 import CourseCard from '../../components/ui/CourseCard'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -13,12 +14,27 @@ export default function TeacherCoursesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [newCourse, setNewCourse] = useState<CourseCreate>({
     name: '',
     code: '',
     description: '',
     semester: '2024-2025'
   })
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64 = reader.result as string
+        setImagePreview(base64)
+        setNewCourse({...newCourse, image_url: base64})
+      }
+      reader.readAsDataURL(file)
+    }
+  }
 
   const filters = ['Все', 'Активные', 'Завершенные']
 
@@ -44,6 +60,7 @@ export default function TeacherCoursesPage() {
       await coursesApi.createCourse(newCourse)
       setCreateOpen(false)
       setNewCourse({ name: '', code: '', description: '', semester: '2024-2025' })
+      setImagePreview(null)
       loadCourses()
     } catch (err) {
       console.error('Error creating course:', err)
@@ -117,8 +134,31 @@ export default function TeacherCoursesPage() {
         </div>
       )}
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Создать курс">
+      <Modal open={createOpen} onClose={() => { setCreateOpen(false); setImagePreview(null) }} title="Создать курс">
         <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-zinc-900 tracking-wide">Изображение курса</label>
+            <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageSelect} className="hidden" />
+            {imagePreview ? (
+              <div className="relative w-full h-32 rounded-lg overflow-hidden">
+                <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                <button 
+                  onClick={() => { setImagePreview(null); setNewCourse({...newCourse, image_url: undefined}) }}
+                  className="absolute top-2 right-2 bg-white/80 rounded-full p-1 hover:bg-white"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full h-32 border-2 border-dashed border-zinc-200 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-zinc-400 transition-colors"
+              >
+                <Upload className="w-6 h-6 text-zinc-400" />
+                <span className="text-sm text-zinc-500">Нажмите для загрузки</span>
+              </button>
+            )}
+          </div>
           <Input 
             label="Название курса" 
             placeholder="Введение в программирование"
@@ -147,8 +187,8 @@ export default function TeacherCoursesPage() {
             />
           </div>
         </div>
-        <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setCreateOpen(false)}>Отмена</Button>
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => { setCreateOpen(false); setImagePreview(null) }}>Отмена</Button>
           <Button className="flex-1" onClick={handleCreateCourse}>Создать</Button>
         </div>
       </Modal>

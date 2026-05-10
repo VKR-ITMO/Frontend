@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { GraduationCap } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { GraduationCap, ArrowLeft } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
@@ -32,7 +32,14 @@ export default function JoinSessionPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4">
+    <div className="min-h-screen flex items-center justify-center bg-white px-4 relative">
+      <Link 
+        to="/student" 
+        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>Назад</span>
+      </Link>
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-4">
           <div className="bg-zinc-900 rounded-lg w-10 h-10 flex items-center justify-center">

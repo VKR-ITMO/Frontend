@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, X, Copy, Check } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
+import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 import { reactionsApi } from '../../api/reactions'
-import type { Session, SessionParticipant, ReactionStats } from '../../api/types'
+import { quizzesApi } from '../../api/quizzes'
+import type { Session, SessionParticipant, ReactionStats, Quiz } from '../../api/types'
 
 export default function ActiveSessionPage() {
   const navigate = useNavigate()
@@ -18,7 +20,13 @@ export default function ActiveSessionPage() {
   const [elapsed, setElapsed] = useState('00:00:00')
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [endModalOpen, setEndModalOpen] = useState(false)
+  const [createQuizOpen, setCreateQuizOpen] = useState(false)
+  const [templateQuizOpen, setTemplateQuizOpen] = useState(false)
+  const [quickPollOpen, setQuickPollOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const [newQuizTitle, setNewQuizTitle] = useState('')
+  const [pollQuestion, setPollQuestion] = useState('')
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -79,6 +87,18 @@ export default function ActiveSessionPage() {
     return () => clearInterval(interval)
   }, [session])
 
+  useEffect(() => {
+    const loadQuizzes = async () => {
+      try {
+        const data = await quizzesApi.getQuizzes()
+        setQuizzes(data)
+      } catch (error) {
+        console.error('Failed to load quizzes:', error)
+      }
+    }
+    loadQuizzes()
+  }, [])
+
   const handleEndSession = async () => {
     if (!session) return
     try {
@@ -99,6 +119,40 @@ export default function ActiveSessionPage() {
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
+  const handleCreateQuiz = async () => {
+    if (!newQuizTitle || !session) return
+    try {
+      const quiz = await quizzesApi.createQuiz({ title: newQuizTitle })
+      await quizzesApi.launchQuiz(session.id, quiz.id)
+      setCreateQuizOpen(false)
+      setNewQuizTitle('')
+    } catch (error) {
+      console.error('Failed to create quiz:', error)
+    }
+  }
+
+  const handleLaunchTemplateQuiz = async (quizId: string) => {
+    if (!session) return
+    try {
+      await quizzesApi.launchQuiz(session.id, quizId)
+      setTemplateQuizOpen(false)
+    } catch (error) {
+      console.error('Failed to launch quiz:', error)
+    }
+  }
+
+  const handleQuickPoll = async () => {
+    if (!pollQuestion || !session) return
+    try {
+      const quiz = await quizzesApi.createQuiz({ title: pollQuestion, description: 'Быстрый опрос' })
+      await quizzesApi.launchQuiz(session.id, quiz.id)
+      setQuickPollOpen(false)
+      setPollQuestion('')
+    } catch (error) {
+      console.error('Failed to create poll:', error)
+    }
   }
 
   if (!session) {
@@ -155,13 +209,22 @@ export default function ActiveSessionPage() {
         </div>
 
         <div className="flex gap-4">
-          <button className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+          <button 
+            onClick={() => setCreateQuizOpen(true)}
+            className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+          >
             Создать квиз
           </button>
-          <button className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+          <button 
+            onClick={() => setTemplateQuizOpen(true)}
+            className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+          >
             Квиз из шаблона
           </button>
-          <button className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+          <button 
+            onClick={() => setQuickPollOpen(true)}
+            className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+          >
             Быстрый опрос
           </button>
         </div>
@@ -249,6 +312,62 @@ export default function ActiveSessionPage() {
           </Button>
           <Button variant="danger" className="flex-1" onClick={handleEndSession}>
             Завершить
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal open={createQuizOpen} onClose={() => setCreateQuizOpen(false)} title="Создать квиз">
+        <Input 
+          label="Название квиза" 
+          placeholder="Введите название"
+          value={newQuizTitle}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewQuizTitle(e.target.value)}
+        />
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setCreateQuizOpen(false)}>
+            Отмена
+          </Button>
+          <Button className="flex-1" onClick={handleCreateQuiz}>
+            Создать и запустить
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal open={templateQuizOpen} onClose={() => setTemplateQuizOpen(false)} title="Квиз из шаблона">
+        <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto">
+          {quizzes.length === 0 ? (
+            <p className="text-sm text-zinc-500 text-center py-4">Нет сохранённых квизов</p>
+          ) : quizzes.map((quiz) => (
+            <button
+              key={quiz.id}
+              onClick={() => handleLaunchTemplateQuiz(quiz.id)}
+              className="border border-zinc-200 rounded-lg p-4 text-left hover:bg-zinc-50 transition-colors"
+            >
+              <p className="text-sm font-medium text-zinc-900">{quiz.title}</p>
+              <p className="text-xs text-zinc-400">{quiz.description || 'Без описания'}</p>
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setTemplateQuizOpen(false)}>
+            Закрыть
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal open={quickPollOpen} onClose={() => setQuickPollOpen(false)} title="Быстрый опрос">
+        <Input 
+          label="Вопрос" 
+          placeholder="Введите вопрос для опроса"
+          value={pollQuestion}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPollQuestion(e.target.value)}
+        />
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setQuickPollOpen(false)}>
+            Отмена
+          </Button>
+          <Button className="flex-1" onClick={handleQuickPoll}>
+            Запустить опрос
           </Button>
         </div>
       </Modal>
