@@ -193,9 +193,10 @@ export interface SessionQuiz {
   id: string
   session_id: string
   quiz_id: string
+  launched_at: string
   started_at: string
   ended_at?: string | null
-  time_limit: number
+  time_limit?: number
 }
 
 export interface QuizSubmission {

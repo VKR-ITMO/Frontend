@@ -1,13 +1,21 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, Copy, Check } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 import { reactionsApi } from '../../api/reactions'
 import { quizzesApi } from '../../api/quizzes'
-import type { Session, SessionParticipant, ReactionStats, Quiz } from '../../api/types'
+import type { Session, SessionParticipant, ReactionStats, Quiz, SessionQuiz } from '../../api/types'
+
+interface NewQuestion {
+  text: string
+  type: string
+  timer: number
+  points: number
+  answers: { text: string; is_correct: boolean }[]
+}
 
 export default function ActiveSessionPage() {
   const navigate = useNavigate()
@@ -25,8 +33,22 @@ export default function ActiveSessionPage() {
   const [quickPollOpen, setQuickPollOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const [endingSession, setEndingSession] = useState(false)
+  const [endError, setEndError] = useState('')
+
+  // Launched quizzes state
+  const [launchedQuizzes, setLaunchedQuizzes] = useState<(SessionQuiz & { title?: string })[]>([])
+
+  // Create quiz state
   const [newQuizTitle, setNewQuizTitle] = useState('')
+  const [newQuizQuestions, setNewQuizQuestions] = useState<NewQuestion[]>([
+    { text: '', type: 'SINGLE', timer: 30, points: 1, answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }] }
+  ])
+
+  // Quick poll state
   const [pollQuestion, setPollQuestion] = useState('')
+  const [pollType, setPollType] = useState<'options' | 'open'>('options')
+  const [pollOptions, setPollOptions] = useState(['', ''])
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -58,17 +80,14 @@ export default function ActiveSessionPage() {
 
   useEffect(() => {
     if (!session) return
-
     const timer = setInterval(() => {
       setElapsed(formatElapsed(session.started_at))
     }, 1000)
-
     return () => clearInterval(timer)
   }, [session, formatElapsed])
 
   useEffect(() => {
     if (!session) return
-
     const fetchData = async () => {
       try {
         const [participantsData, reactionsData] = await Promise.all([
@@ -81,9 +100,8 @@ export default function ActiveSessionPage() {
         console.error('Failed to fetch session data:', error)
       }
     }
-
     fetchData()
-    const interval = setInterval(fetchData, 5000)
+    const interval = setInterval(fetchData, 3000)
     return () => clearInterval(interval)
   }, [session])
 
@@ -101,11 +119,17 @@ export default function ActiveSessionPage() {
 
   const handleEndSession = async () => {
     if (!session) return
+    setEndingSession(true)
+    setEndError('')
     try {
       await sessionsApi.endSession(session.id)
+      setEndModalOpen(false)
       navigate('/teacher/live')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to end session:', error)
+      setEndError(error?.message || 'Не удалось завершить сессию. Попробуйте ещё раз.')
+    } finally {
+      setEndingSession(false)
     }
   }
 
@@ -121,25 +145,93 @@ export default function ActiveSessionPage() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
 
+  // --- Create Quiz with questions ---
+  const addQuestion = () => {
+    setNewQuizQuestions([...newQuizQuestions, {
+      text: '', type: 'SINGLE', timer: 30, points: 1,
+      answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }]
+    }])
+  }
+
+  const removeQuestion = (idx: number) => {
+    if (newQuizQuestions.length <= 1) return
+    setNewQuizQuestions(newQuizQuestions.filter((_, i) => i !== idx))
+  }
+
+  const updateQuestion = (idx: number, field: string, value: unknown) => {
+    const updated = [...newQuizQuestions]
+    ;(updated[idx] as any)[field] = value
+    if (field === 'type' && value === 'BOOLEAN') {
+      updated[idx].answers = [{ text: 'Верно', is_correct: true }, { text: 'Неверно', is_correct: false }]
+    }
+    setNewQuizQuestions(updated)
+  }
+
+  const addAnswer = (qIdx: number) => {
+    const updated = [...newQuizQuestions]
+    updated[qIdx].answers.push({ text: '', is_correct: false })
+    setNewQuizQuestions(updated)
+  }
+
+  const removeAnswer = (qIdx: number, aIdx: number) => {
+    const updated = [...newQuizQuestions]
+    if (updated[qIdx].answers.length <= 2) return
+    updated[qIdx].answers = updated[qIdx].answers.filter((_, i) => i !== aIdx)
+    setNewQuizQuestions(updated)
+  }
+
+  const updateAnswer = (qIdx: number, aIdx: number, field: string, value: unknown) => {
+    const updated = [...newQuizQuestions]
+    ;(updated[qIdx].answers[aIdx] as any)[field] = value
+    if (field === 'is_correct' && updated[qIdx].type === 'SINGLE' && value === true) {
+      updated[qIdx].answers.forEach((a, i) => { if (i !== aIdx) a.is_correct = false })
+    }
+    setNewQuizQuestions(updated)
+  }
+
   const handleCreateQuiz = async () => {
     if (!newQuizTitle || !session) return
     try {
       const quiz = await quizzesApi.createQuiz({ title: newQuizTitle })
-      await quizzesApi.launchQuiz(session.id, quiz.id)
+      await quizzesApi.updateQuiz(quiz.id, {
+        title: newQuizTitle,
+        questions: newQuizQuestions.map((q, idx) => ({
+          text: q.text,
+          type: q.type,
+          timer: q.timer,
+          points: q.points,
+          order_index: idx,
+          answers: q.answers,
+        })),
+      })
+      const sessionQuiz = await quizzesApi.launchQuiz(session.id, quiz.id)
+      setLaunchedQuizzes(prev => [...prev, { ...sessionQuiz, title: newQuizTitle }])
       setCreateQuizOpen(false)
       setNewQuizTitle('')
+      setNewQuizQuestions([{ text: '', type: 'SINGLE', timer: 30, points: 1, answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }] }])
     } catch (error) {
       console.error('Failed to create quiz:', error)
     }
   }
 
-  const handleLaunchTemplateQuiz = async (quizId: string) => {
+  const handleLaunchTemplateQuiz = async (quiz: Quiz) => {
     if (!session) return
     try {
-      await quizzesApi.launchQuiz(session.id, quizId)
+      const sessionQuiz = await quizzesApi.launchQuiz(session.id, quiz.id)
+      setLaunchedQuizzes(prev => [...prev, { ...sessionQuiz, title: quiz.title }])
       setTemplateQuizOpen(false)
     } catch (error) {
       console.error('Failed to launch quiz:', error)
+    }
+  }
+
+  const handleEndQuiz = async () => {
+    if (!session) return
+    try {
+      await quizzesApi.endQuiz(session.id)
+      setLaunchedQuizzes(prev => prev.map(q => q.ended_at ? q : { ...q, ended_at: new Date().toISOString() }))
+    } catch (error) {
+      console.error('Failed to end quiz:', error)
     }
   }
 
@@ -147,9 +239,37 @@ export default function ActiveSessionPage() {
     if (!pollQuestion || !session) return
     try {
       const quiz = await quizzesApi.createQuiz({ title: pollQuestion, description: 'Быстрый опрос' })
-      await quizzesApi.launchQuiz(session.id, quiz.id)
+      if (pollType === 'options' && pollOptions.some(o => o.trim())) {
+        await quizzesApi.updateQuiz(quiz.id, {
+          title: pollQuestion,
+          questions: [{
+            text: pollQuestion,
+            type: 'SINGLE',
+            timer: 60,
+            points: 1,
+            order_index: 0,
+            answers: pollOptions.filter(o => o.trim()).map((o, i) => ({ text: o, is_correct: i === 0 })),
+          }],
+        })
+      } else {
+        await quizzesApi.updateQuiz(quiz.id, {
+          title: pollQuestion,
+          questions: [{
+            text: pollQuestion,
+            type: 'TEXT',
+            timer: 120,
+            points: 1,
+            order_index: 0,
+            answers: [],
+          }],
+        })
+      }
+      const sessionQuiz = await quizzesApi.launchQuiz(session.id, quiz.id)
+      setLaunchedQuizzes(prev => [...prev, { ...sessionQuiz, title: pollQuestion }])
       setQuickPollOpen(false)
       setPollQuestion('')
+      setPollOptions(['', ''])
+      setPollType('options')
     } catch (error) {
       console.error('Failed to create poll:', error)
     }
@@ -171,6 +291,8 @@ export default function ActiveSessionPage() {
     { key: 'FIRE', name: 'Огонь', emoji: '🔥', count: reactions.FIRE },
     { key: 'CLAP', name: 'Круто', emoji: '👏', count: reactions.CLAP },
   ]
+
+  const activeQuiz = launchedQuizzes.find(q => !q.ended_at)
 
   return (
     <div className="flex gap-8 p-8 min-h-screen">
@@ -209,19 +331,19 @@ export default function ActiveSessionPage() {
         </div>
 
         <div className="flex gap-4">
-          <button 
+          <button
             onClick={() => setCreateQuizOpen(true)}
             className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
           >
             Создать квиз
           </button>
-          <button 
+          <button
             onClick={() => setTemplateQuizOpen(true)}
             className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
           >
             Квиз из шаблона
           </button>
-          <button 
+          <button
             onClick={() => setQuickPollOpen(true)}
             className="px-6 py-3 border border-zinc-200 rounded-lg text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
           >
@@ -229,13 +351,60 @@ export default function ActiveSessionPage() {
           </button>
         </div>
 
-        <div className="bg-zinc-50 rounded-lg flex-1 flex flex-col items-center justify-center gap-2 min-h-[300px]">
-          <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
-            <Clock className="w-6 h-6 text-zinc-400" />
+        {/* Launched quizzes OR waiting message */}
+        {launchedQuizzes.length > 0 ? (
+          <div className="flex flex-col gap-4 flex-1">
+            {activeQuiz && (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center">
+                    <Play className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">{activeQuiz.title || 'Квиз запущен'}</p>
+                    <p className="text-xs text-emerald-600">Идёт прямо сейчас</p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleEndQuiz}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                >
+                  <Square className="w-4 h-4" /> Завершить квиз
+                </button>
+              </div>
+            )}
+            <div className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold text-zinc-900">Запущенные квизы ({launchedQuizzes.length})</h3>
+              {launchedQuizzes.map((q, idx) => (
+                <div key={q.id} className={`border rounded-lg p-4 flex items-center justify-between ${q.ended_at ? 'bg-zinc-50 border-zinc-100' : 'bg-white border-zinc-200'}`}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-semibold text-zinc-400 w-4">{idx + 1}</span>
+                    <div>
+                      <p className="text-sm font-medium text-zinc-900">{q.title || `Квиз #${idx + 1}`}</p>
+                      <p className="text-xs text-zinc-400">
+                        {q.ended_at ? 'Завершён' : 'Активен'}
+                        {' · '}{new Date(q.launched_at || q.started_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                  {q.ended_at ? (
+                    <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-1 rounded">Завершён</span>
+                  ) : (
+                    <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-medium">Активен</span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-          <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
-          <p className="text-xs text-zinc-400">Нажмите "Создать квиз" чтобы начать</p>
-        </div>
+        ) : (
+          <div className="bg-zinc-50 rounded-lg flex-1 flex flex-col items-center justify-center gap-2 min-h-[300px]">
+            <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
+              <Clock className="w-6 h-6 text-zinc-400" />
+            </div>
+            <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
+            <p className="text-xs text-zinc-400">Нажмите "Создать квиз" чтобы начать</p>
+          </div>
+        )}
       </div>
 
       <div className="w-[400px] flex flex-col gap-6">
@@ -282,6 +451,7 @@ export default function ActiveSessionPage() {
         </div>
       </div>
 
+      {/* QR Modal */}
       <Modal open={qrModalOpen} onClose={() => setQrModalOpen(false)} title="Код доступа">
         <div className="flex flex-col items-center gap-6">
           <div className="w-48 h-48 bg-zinc-100 rounded-lg flex items-center justify-center">
@@ -297,32 +467,120 @@ export default function ActiveSessionPage() {
             </div>
           </div>
           <p className="text-xs text-zinc-400 text-center">
-            Студенты могут присоединиться по адресу lecturehub.app/join
+            Студенты могут присоединиться по адресу {window.location.origin}/join
           </p>
         </div>
       </Modal>
 
+      {/* End Session Modal */}
       <Modal open={endModalOpen} onClose={() => setEndModalOpen(false)} title="Завершить сессию?">
         <p className="text-sm text-zinc-600 mb-4">
           Вы уверены, что хотите завершить сессию? Все участники будут отключены.
         </p>
+        {endError && <p className="text-sm text-red-500 mb-4">{endError}</p>}
         <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setEndModalOpen(false)}>
+          <Button variant="secondary" className="flex-1" onClick={() => setEndModalOpen(false)} disabled={endingSession}>
             Отмена
           </Button>
-          <Button variant="danger" className="flex-1" onClick={handleEndSession}>
-            Завершить
+          <Button variant="danger" className="flex-1" onClick={handleEndSession} disabled={endingSession}>
+            {endingSession ? 'Завершение...' : 'Завершить'}
           </Button>
         </div>
       </Modal>
 
+      {/* Create Quiz Modal (mini constructor) */}
       <Modal open={createQuizOpen} onClose={() => setCreateQuizOpen(false)} title="Создать квиз">
-        <Input 
-          label="Название квиза" 
-          placeholder="Введите название"
-          value={newQuizTitle}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewQuizTitle(e.target.value)}
-        />
+        <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto">
+          <Input
+            label="Название квиза"
+            placeholder="Введите название"
+            value={newQuizTitle}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewQuizTitle(e.target.value)}
+          />
+          {newQuizQuestions.map((q, qIdx) => (
+            <div key={qIdx} className="bg-zinc-50 rounded-lg p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-zinc-500">Вопрос {qIdx + 1}</span>
+                {newQuizQuestions.length > 1 && (
+                  <button onClick={() => removeQuestion(qIdx)} className="text-red-400 hover:text-red-600">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              <input
+                className="w-full px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                placeholder="Текст вопроса"
+                value={q.text}
+                onChange={(e) => updateQuestion(qIdx, 'text', e.target.value)}
+              />
+              <div className="flex gap-2">
+                <select
+                  className="flex-1 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none bg-white"
+                  value={q.type}
+                  onChange={(e) => updateQuestion(qIdx, 'type', e.target.value)}
+                >
+                  <option value="SINGLE">Один ответ</option>
+                  <option value="MULTIPLE">Несколько ответов</option>
+                  <option value="BOOLEAN">Верно/Неверно</option>
+                  <option value="TEXT">Текстовый ответ</option>
+                </select>
+                <input
+                  type="number"
+                  className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                  placeholder="Сек"
+                  value={q.timer}
+                  onChange={(e) => updateQuestion(qIdx, 'timer', parseInt(e.target.value) || 30)}
+                />
+              </div>
+              {(q.type === 'SINGLE' || q.type === 'MULTIPLE') && (
+                <div className="flex flex-col gap-2">
+                  {q.answers.map((a, aIdx) => (
+                    <div key={aIdx} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateAnswer(qIdx, aIdx, 'is_correct', !a.is_correct)}
+                        className={`w-5 h-5 shrink-0 border-2 flex items-center justify-center transition-colors ${
+                          q.type === 'SINGLE' ? 'rounded-full' : 'rounded'
+                        } ${a.is_correct ? 'border-emerald-500 bg-emerald-500' : 'border-zinc-300'}`}
+                      >
+                        {a.is_correct && <div className="w-2 h-2 bg-white rounded-full" />}
+                      </button>
+                      <input
+                        className="flex-1 px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                        placeholder={`Вариант ${aIdx + 1}`}
+                        value={a.text}
+                        onChange={(e) => updateAnswer(qIdx, aIdx, 'text', e.target.value)}
+                      />
+                      {q.answers.length > 2 && (
+                        <button onClick={() => removeAnswer(qIdx, aIdx)} className="text-zinc-300 hover:text-red-500">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => addAnswer(qIdx)}
+                    className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 py-1"
+                  >
+                    <Plus className="w-3 h-3" /> Добавить вариант
+                  </button>
+                </div>
+              )}
+              {q.type === 'BOOLEAN' && (
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-white border border-emerald-200 rounded-lg py-2 text-center text-sm text-emerald-600 font-medium">Верно</div>
+                  <div className="flex-1 bg-white border border-red-200 rounded-lg py-2 text-center text-sm text-red-600 font-medium">Неверно</div>
+                </div>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={addQuestion}
+            className="flex items-center justify-center gap-2 py-2 border border-dashed border-zinc-300 rounded-lg text-sm text-zinc-500 hover:bg-zinc-50 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Добавить вопрос
+          </button>
+        </div>
         <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setCreateQuizOpen(false)}>
             Отмена
@@ -333,18 +591,22 @@ export default function ActiveSessionPage() {
         </div>
       </Modal>
 
+      {/* Template Quiz Modal */}
       <Modal open={templateQuizOpen} onClose={() => setTemplateQuizOpen(false)} title="Квиз из шаблона">
-        <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto">
+        <div className="flex flex-col gap-3 max-h-[400px] overflow-y-auto">
           {quizzes.length === 0 ? (
             <p className="text-sm text-zinc-500 text-center py-4">Нет сохранённых квизов</p>
           ) : quizzes.map((quiz) => (
             <button
               key={quiz.id}
-              onClick={() => handleLaunchTemplateQuiz(quiz.id)}
-              className="border border-zinc-200 rounded-lg p-4 text-left hover:bg-zinc-50 transition-colors"
+              onClick={() => handleLaunchTemplateQuiz(quiz)}
+              className="border border-zinc-200 rounded-lg p-4 text-left hover:bg-zinc-50 transition-colors flex items-center justify-between group"
             >
-              <p className="text-sm font-medium text-zinc-900">{quiz.title}</p>
-              <p className="text-xs text-zinc-400">{quiz.description || 'Без описания'}</p>
+              <div>
+                <p className="text-sm font-medium text-zinc-900">{quiz.title}</p>
+                <p className="text-xs text-zinc-400">{quiz.description || 'Без описания'}</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-zinc-600 transition-colors" />
             </button>
           ))}
         </div>
@@ -355,13 +617,67 @@ export default function ActiveSessionPage() {
         </div>
       </Modal>
 
+      {/* Quick Poll Modal */}
       <Modal open={quickPollOpen} onClose={() => setQuickPollOpen(false)} title="Быстрый опрос">
-        <Input 
-          label="Вопрос" 
-          placeholder="Введите вопрос для опроса"
-          value={pollQuestion}
-          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPollQuestion(e.target.value)}
-        />
+        <div className="flex flex-col gap-4">
+          <Input
+            label="Вопрос"
+            placeholder="Введите вопрос для опроса"
+            value={pollQuestion}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPollQuestion(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPollType('options')}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                pollType === 'options' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+              }`}
+            >
+              С вариантами
+            </button>
+            <button
+              onClick={() => setPollType('open')}
+              className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                pollType === 'open' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+              }`}
+            >
+              Открытый вопрос
+            </button>
+          </div>
+          {pollType === 'options' && (
+            <div className="flex flex-col gap-2">
+              {pollOptions.map((opt, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <span className="text-xs text-zinc-400 w-4">{idx + 1}.</span>
+                  <input
+                    className="flex-1 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                    placeholder={`Вариант ${idx + 1}`}
+                    value={opt}
+                    onChange={(e) => {
+                      const updated = [...pollOptions]
+                      updated[idx] = e.target.value
+                      setPollOptions(updated)
+                    }}
+                  />
+                  {pollOptions.length > 2 && (
+                    <button onClick={() => setPollOptions(pollOptions.filter((_, i) => i !== idx))} className="text-zinc-300 hover:text-red-500">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+              <button
+                onClick={() => setPollOptions([...pollOptions, ''])}
+                className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 py-1"
+              >
+                <Plus className="w-3 h-3" /> Добавить вариант
+              </button>
+            </div>
+          )}
+          {pollType === 'open' && (
+            <p className="text-xs text-zinc-400">Студенты смогут ввести свой ответ в текстовое поле.</p>
+          )}
+        </div>
         <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setQuickPollOpen(false)}>
             Отмена

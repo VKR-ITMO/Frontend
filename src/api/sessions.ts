@@ -26,7 +26,7 @@ export const sessionsApi = {
     return api.get<SessionParticipant[]>(`/sessions/${sessionId}/participants`)
   },
 
-  getSessionHistory: (sessionId: string): Promise<CompletedSession[]> => {
-    return api.get<CompletedSession[]>(`/sessions/history?session_id=${sessionId}`)
+  getSessionHistory: (): Promise<CompletedSession[]> => {
+    return api.get<CompletedSession[]>('/sessions/history')
   },
 }

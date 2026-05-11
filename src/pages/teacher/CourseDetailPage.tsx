@@ -185,7 +185,7 @@ export default function TeacherCourseDetailPage() {
   }
 
   const copyInviteLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/join?course=${courseId}`)
+    navigator.clipboard.writeText(`${window.location.origin}/student/courses/${courseId}`)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
@@ -522,7 +522,7 @@ export default function TeacherCourseDetailPage() {
               <input 
                 className="flex-1 border border-zinc-200 rounded-lg px-4 py-3 text-sm bg-zinc-50 focus:outline-none" 
                 readOnly 
-                value={`${window.location.origin}/join?course=${courseId}`}
+                value={`${window.location.origin}/student/courses/${courseId}`}
               />
               <Button onClick={copyInviteLink}>
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
