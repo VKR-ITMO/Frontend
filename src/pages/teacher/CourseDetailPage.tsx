@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, QrCode, Settings, Pencil, Trash2, Download, Upload, Copy, Check } from 'lucide-react'
+import { ArrowLeft, QrCode, Pencil, Trash2, Download, Copy, Check } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
@@ -9,6 +9,7 @@ import { coursesApi } from '../../api/courses'
 import { lecturesApi } from '../../api/lectures'
 import { quizzesApi } from '../../api/quizzes'
 import { sessionsApi } from '../../api/sessions'
+import { materialsApi, type Material } from '../../api/materials'
 import { useAuth } from '../../contexts/AuthContext'
 import type { Course, Lecture, Quiz, User, LectureCreate } from '../../api/types'
 
@@ -21,25 +22,21 @@ const courseTabs = [
   { key: 'settings', label: 'Настройки' },
 ]
 
-interface Material {
-  id: string
-  name: string
-  url: string
-  size: string
-  uploadedAt: string
-}
 
 export default function TeacherCourseDetailPage() {
   const { courseId } = useParams<{ courseId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const [course, setCourse] = useState<Course | null>(null)
   const [lectures, setLectures] = useState<Lecture[]>([])
   const [quizzes, setQuizzes] = useState<Quiz[]>([])
   const [members, setMembers] = useState<User[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
+  const [lectureError, setLectureError] = useState('')
+  const [materialName, setMaterialName] = useState('')
+  const [materialUrl, setMaterialUrl] = useState('')
+  const [materialDesc, setMaterialDesc] = useState('')
   const [loading, setLoading] = useState(true)
   
   const [tab, setTab] = useState('lectures')
@@ -82,16 +79,18 @@ export default function TeacherCourseDetailPage() {
     if (!courseId) return
     try {
       setLoading(true)
-      const [courseData, lecturesData, quizzesData, studentsData] = await Promise.all([
+      const [courseData, lecturesData, quizzesData, studentsData, materialsData] = await Promise.all([
         coursesApi.getCourse(courseId),
         lecturesApi.getCourseLectures(courseId),
         quizzesApi.getQuizzes(),
-        coursesApi.getCourseStudents(courseId).catch(() => [])
+        coursesApi.getCourseStudents(courseId).catch(() => []),
+        materialsApi.getMaterials(courseId).catch(() => [])
       ])
       setCourse(courseData)
       setLectures(lecturesData)
       setQuizzes(quizzesData.filter(q => q.course_id === courseId))
       setMembers(studentsData)
+      setMaterials(materialsData)
       setCourseSettings({ name: courseData.name, description: courseData.description || '' })
     } catch (error) {
       console.error('Failed to load course data:', error)
@@ -101,19 +100,59 @@ export default function TeacherCourseDetailPage() {
   }
 
   const handleCreateLecture = async () => {
-    if (!courseId || !newLecture.name || !newLecture.topic) return
+    if (!courseId || !newLecture.name || !newLecture.topic) {
+      setLectureError('Заполните название и тему')
+      return
+    }
+    setLectureError('')
     try {
       const scheduled_at = lectureDate && lectureTime 
         ? new Date(`${lectureDate}T${lectureTime}`).toISOString()
         : undefined
-      await lecturesApi.createLecture(courseId, { ...newLecture, scheduled_at })
+      const payload: Record<string, unknown> = {
+        name: newLecture.name,
+        topic: newLecture.topic,
+        max_participants: newLecture.max_participants || 50,
+      }
+      if (newLecture.description) payload.description = newLecture.description
+      if (scheduled_at) payload.scheduled_at = scheduled_at
+      await lecturesApi.createLecture(courseId, payload as unknown as LectureCreate)
       setAddLectureOpen(false)
       setNewLecture({ name: '', topic: '', description: '', scheduled_at: '', max_participants: 50 })
       setLectureDate('')
       setLectureTime('')
       loadCourseData()
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create lecture:', error)
+      setLectureError(error?.message || 'Не удалось создать лекцию')
+    }
+  }
+
+  const handleCreateMaterial = async () => {
+    if (!courseId || !materialName) return
+    try {
+      await materialsApi.createMaterial(courseId, {
+        name: materialName,
+        description: materialDesc || undefined,
+        url: materialUrl || undefined,
+      })
+      setAddMaterialOpen(false)
+      setMaterialName('')
+      setMaterialUrl('')
+      setMaterialDesc('')
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to create material:', error)
+    }
+  }
+
+  const handleDeleteMaterial = async (materialId: string) => {
+    if (!courseId) return
+    try {
+      await materialsApi.deleteMaterial(courseId, materialId)
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to delete material:', error)
     }
   }
 
@@ -302,11 +341,11 @@ export default function TeacherCourseDetailPage() {
               <div key={m.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-zinc-900">{m.name}</span>
-                  <span className="text-xs text-zinc-400">{m.size} • {m.uploadedAt}</span>
+                  <span className="text-xs text-zinc-400">{m.description || ''}{m.file_size ? ` • ${m.file_size}` : ''}</span>
                 </div>
                 <div className="flex items-center gap-5">
-                  <a href={m.url} download className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Download className="w-4 h-4 text-zinc-500" /></a>
-                  <button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
+                  {m.url && <a href={m.url} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Download className="w-4 h-4 text-zinc-500" /></a>}
+                  <button onClick={() => handleDeleteMaterial(m.id)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
                 </div>
               </div>
             ))}
@@ -442,8 +481,9 @@ export default function TeacherCourseDetailPage() {
       </Modal>
 
       {/* Add Lecture Modal */}
-      <Modal open={addLectureOpen} onClose={() => setAddLectureOpen(false)} title="Создать лекцию">
+      <Modal open={addLectureOpen} onClose={() => { setAddLectureOpen(false); setLectureError('') }} title="Создать лекцию">
         <div className="flex flex-col gap-4">
+          {lectureError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{lectureError}</p>}
           <Input 
             label="Название" 
             placeholder="Лекция 1"
@@ -537,16 +577,32 @@ export default function TeacherCourseDetailPage() {
 
       {/* Add Material Modal */}
       <Modal open={addMaterialOpen} onClose={() => setAddMaterialOpen(false)} title="Добавить материал">
-        <div className="flex flex-col items-center gap-4 py-8">
-          <input type="file" ref={fileInputRef} className="hidden" />
-          <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center">
-            <Upload className="w-8 h-8 text-zinc-400" />
+        <div className="flex flex-col gap-4">
+          <Input 
+            label="Название материала" 
+            placeholder="Презентация к лекции 1"
+            value={materialName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaterialName(e.target.value)}
+          />
+          <Input 
+            label="Ссылка (URL)" 
+            placeholder="https://drive.google.com/..."
+            value={materialUrl}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaterialUrl(e.target.value)}
+          />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-zinc-900 tracking-wide">Описание</label>
+            <textarea 
+              className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[60px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10" 
+              placeholder="Краткое описание материала"
+              value={materialDesc}
+              onChange={(e) => setMaterialDesc(e.target.value)}
+            />
           </div>
-          <p className="text-sm text-zinc-600">Перетащите файл или нажмите для выбора</p>
-          <Button onClick={() => fileInputRef.current?.click()}>Выбрать файл</Button>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setAddMaterialOpen(false)}>Отмена</Button>
+          <Button className="flex-1" onClick={handleCreateMaterial}>Добавить</Button>
         </div>
       </Modal>
     </div>

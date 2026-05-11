@@ -1,27 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical } from 'lucide-react'
+import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { reactionsApi } from '../../api/reactions'
 import { sessionsApi } from '../../api/sessions'
+import { quizzesApi, type ActiveQuizQuestion } from '../../api/quizzes'
 import { useAuth } from '../../contexts/AuthContext'
-import type { SessionWithLecture, ReactionType } from '../../api/types'
-
-interface QuizQuestion {
-  id: string
-  text: string
-  type: string
-  points: number
-  timer: number
-  answers: { id: string; text: string; is_correct: boolean }[]
-  extra_data?: Record<string, unknown>
-}
+import type { SessionWithLecture, SessionParticipant, ReactionType } from '../../api/types'
 
 interface ActiveQuiz {
   sessionQuizId: string
   quizId: string
   title: string
-  questions: QuizQuestion[]
+  questions: ActiveQuizQuestion[]
   currentQuestion: number
   selectedAnswers: Record<string, string[]>
   textAnswers: Record<string, string>
@@ -36,13 +27,13 @@ export default function StudentLiveSessionPage() {
   const { user, isAuthenticated } = useAuth()
   const [session, setSession] = useState<SessionWithLecture | null>(location.state?.session || null)
   const [elapsed, setElapsed] = useState('00:00')
-  const [participants, setParticipants] = useState(0)
+  const [participantsList, setParticipantsList] = useState<SessionParticipant[]>([])
   const [quiz, setQuiz] = useState<ActiveQuiz | null>(null)
   const [quizResult, setQuizResult] = useState<{ score: number; correct: number; total: number } | null>(null)
   const [sessionEnded, setSessionEnded] = useState(false)
   const [reactionCounts, setReactionCounts] = useState({ THUMBS_UP: 0, CONFUSED: 0, THINKING: 0, FIRE: 0 })
   const [lastReaction, setLastReaction] = useState<string | null>(null)
-  const [activeQuizPolling, setActiveQuizPolling] = useState(true)
+  const [quizSubmitted, setQuizSubmitted] = useState(false)
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -63,6 +54,7 @@ export default function StudentLiveSessionPage() {
     return () => clearInterval(timer)
   }, [session, formatElapsed, navigate])
 
+  // Poll session status + participants
   useEffect(() => {
     if (!session || !sessionId) return
     const poll = async () => {
@@ -72,7 +64,11 @@ export default function StudentLiveSessionPage() {
           setSessionEnded(true)
           return
         }
-        setParticipants(sessionData.total_participants)
+        // Fetch real participants
+        try {
+          const parts = await sessionsApi.getSessionParticipants(sessionId)
+          setParticipantsList(parts.filter(p => !p.left_at))
+        } catch { /* ignore */ }
       } catch {
         // session might have ended
       }
@@ -81,6 +77,32 @@ export default function StudentLiveSessionPage() {
     const interval = setInterval(poll, 5000)
     return () => clearInterval(interval)
   }, [session, sessionId])
+
+  // Poll for active quiz
+  useEffect(() => {
+    if (!sessionId || sessionEnded || quiz || quizSubmitted) return
+    const pollQuiz = async () => {
+      try {
+        const activeQuiz = await quizzesApi.getActiveQuiz(sessionId)
+        if (activeQuiz && activeQuiz.questions.length > 0) {
+          setQuiz({
+            sessionQuizId: activeQuiz.session_quiz_id,
+            quizId: activeQuiz.quiz_id,
+            title: activeQuiz.title || 'Квиз',
+            questions: activeQuiz.questions,
+            currentQuestion: 0,
+            selectedAnswers: {},
+            textAnswers: {},
+            orderingAnswers: {},
+            matchingAnswers: {},
+          })
+        }
+      } catch { /* no active quiz */ }
+    }
+    pollQuiz()
+    const interval = setInterval(pollQuiz, 3000)
+    return () => clearInterval(interval)
+  }, [sessionId, sessionEnded, quiz, quizSubmitted])
 
   const sendReaction = async (type: ReactionType) => {
     if (!sessionId || lastReaction === type) return
@@ -94,7 +116,13 @@ export default function StudentLiveSessionPage() {
     }
   }
 
-  const leaveSession = () => {
+  const handleLeaveSession = async () => {
+    // Call leave API to properly mark left_at in DB
+    if (sessionId) {
+      try {
+        await sessionsApi.leaveSession(sessionId)
+      } catch { /* ignore */ }
+    }
     if (isAuthenticated && user) {
       const path = user.role === 'STUDENT' ? '/student' : user.role === 'TEACHER' ? '/teacher' : '/'
       navigate(path)
@@ -133,28 +161,59 @@ export default function StudentLiveSessionPage() {
           answers[q.id] = quiz.selectedAnswers[q.id] || []
         }
       }
-      // submit via REST
-      setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
+      try {
+        const result = await quizzesApi.submitQuizAnswers(quiz.sessionQuizId, answers)
+        setQuizResult({ score: result.score, correct: 0, total: quiz.questions.length })
+      } catch {
+        setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
+      }
       setQuiz(null)
+      setQuizSubmitted(true)
     } catch (error) {
       console.error('Submit failed:', error)
     }
   }
 
+  // End-of-session page
   if (sessionEnded) {
+    const totalParticipants = participantsList.length
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="bg-white rounded-xl p-8 max-w-md text-center">
-          <h1 className="text-2xl font-bold text-zinc-900 mb-2">Лекция завершена</h1>
-          <p className="text-zinc-500 mb-6">Спасибо за участие!</p>
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
+        <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-10 max-w-md w-full text-center">
+          <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Trophy className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-zinc-900 mb-2">Сессия завершена</h1>
+          <p className="text-sm text-zinc-500 mb-6">Спасибо за участие в лекции!</p>
+
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="bg-zinc-50 rounded-xl p-4">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Users className="w-4 h-4 text-zinc-400" />
+                <span className="text-xs text-zinc-500">Участников</span>
+              </div>
+              <p className="text-xl font-bold text-zinc-900">{totalParticipants}</p>
+            </div>
+            <div className="bg-zinc-50 rounded-xl p-4">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Clock className="w-4 h-4 text-zinc-400" />
+                <span className="text-xs text-zinc-500">Длительность</span>
+              </div>
+              <p className="text-xl font-bold text-zinc-900">{elapsed}</p>
+            </div>
+          </div>
+
           {quizResult && (
-            <div className="bg-zinc-50 rounded-lg p-4 mb-6">
-              <p className="text-sm text-zinc-500">Ваш результат</p>
-              <p className="text-3xl font-bold text-zinc-900">{quizResult.correct} / {quizResult.total}</p>
-              <p className="text-sm text-zinc-400">Баллов: {quizResult.score}</p>
+            <div className="bg-zinc-50 rounded-xl p-4 mb-6">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <Star className="w-4 h-4 text-zinc-400" />
+                <span className="text-xs text-zinc-500">Ваш результат за квиз</span>
+              </div>
+              <p className="text-2xl font-bold text-zinc-900">{quizResult.score} баллов</p>
             </div>
           )}
-          <Button onClick={leaveSession}>
+
+          <Button fullWidth onClick={handleLeaveSession}>
             {isAuthenticated ? 'В личный кабинет' : 'На главную'}
           </Button>
         </div>
@@ -168,7 +227,7 @@ export default function StudentLiveSessionPage() {
       <div className="min-h-screen bg-white">
         <div className="border-b border-zinc-100 px-36 py-4 flex items-center justify-between">
           <div className="flex flex-col gap-1">
-            <h1 className="text-sm font-semibold text-zinc-900 truncate">{session?.lecture?.name || 'Лекция'}</h1>
+            <h1 className="text-sm font-semibold text-zinc-900 truncate">{quiz.title || session?.lecture?.name || 'Квиз'}</h1>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -213,6 +272,10 @@ export default function StudentLiveSessionPage() {
     { type: 'FIRE' as ReactionType, label: 'Скучно', icon: <Frown className="w-6 h-6 text-zinc-400" /> },
   ]
 
+  const getInitials = (name: string) => {
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -224,11 +287,11 @@ export default function StudentLiveSessionPage() {
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               <span className="text-xs text-zinc-500">В эфире · {elapsed}</span>
             </div>
-            <span className="text-xs text-zinc-400">{participants} участников</span>
+            <span className="text-xs text-zinc-400">{participantsList.length} участников</span>
           </div>
         </div>
         <button
-          onClick={leaveSession}
+          onClick={handleLeaveSession}
           className="bg-zinc-100 px-3 py-1.5 rounded-full text-xs text-zinc-600 hover:bg-zinc-200 transition-colors"
         >
           Выйти
@@ -243,17 +306,26 @@ export default function StudentLiveSessionPage() {
           <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-5">
             <p className="text-xs font-medium text-zinc-400 tracking-wider mb-2">Текущая тема</p>
             <p className="text-base font-semibold text-zinc-900">{session?.lecture?.topic || session?.lecture?.name || '—'}</p>
-            <p className="text-sm text-zinc-400 mt-1">{session?.lecture?.name ? `Проф. ${session.lecture.name}` : ''}</p>
           </div>
 
-          {/* Waiting for quiz */}
-          <div className="bg-zinc-50 rounded-lg flex flex-col items-center justify-center py-8 gap-2">
-            <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
-              <Clock className="w-5 h-5 text-zinc-400" />
+          {/* Quiz submitted result */}
+          {quizSubmitted && quizResult && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center">
+              <p className="text-sm font-medium text-emerald-800 mb-1">Ответы отправлены!</p>
+              <p className="text-xs text-emerald-600">Баллов: {quizResult.score}</p>
             </div>
-            <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
-            <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
-          </div>
+          )}
+
+          {/* Waiting for quiz (show only if no quiz submitted yet) */}
+          {!quizSubmitted && (
+            <div className="bg-zinc-50 rounded-lg flex flex-col items-center justify-center py-8 gap-2">
+              <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
+                <Clock className="w-5 h-5 text-zinc-400" />
+              </div>
+              <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
+              <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
+            </div>
+          )}
 
           {/* Reactions */}
           <div className="flex flex-col gap-4">
@@ -280,23 +352,23 @@ export default function StudentLiveSessionPage() {
           </div>
         </div>
 
-        {/* Right column - Top participants */}
+        {/* Right column - Top participants (real data) */}
         <div className="w-[398px] flex flex-col gap-5">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-zinc-900">Топ участников</h3>
-            <span className="text-xs text-zinc-400 cursor-pointer">Полный рейтинг →</span>
+            <h3 className="text-sm font-semibold text-zinc-900">Участники ({participantsList.length})</h3>
           </div>
           <div className="flex flex-col gap-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
+            {participantsList.length === 0 ? (
+              <p className="text-center py-4 text-xs text-zinc-400">Нет участников</p>
+            ) : participantsList.slice(0, 10).map((p, i) => (
+              <div key={p.id} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <span className="text-xs font-semibold text-zinc-400 w-3">{i}</span>
+                  <span className="text-xs font-semibold text-zinc-400 w-3">{i + 1}</span>
                   <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600">
-                    ИФ
+                    {getInitials(p.student_name)}
                   </div>
-                  <span className="text-sm font-medium text-zinc-900">Имя Фамилия</span>
+                  <span className="text-sm font-medium text-zinc-900">{p.student_name}</span>
                 </div>
-                <span className="text-sm font-semibold text-zinc-900">—</span>
               </div>
             ))}
           </div>
@@ -314,7 +386,7 @@ function QuizQuestionView({
   onToggleMultiple,
   onTextChange,
 }: {
-  question: QuizQuestion
+  question: ActiveQuizQuestion
   selectedAnswers: string[]
   textAnswer: string
   onSelectSingle: (answerId: string) => void

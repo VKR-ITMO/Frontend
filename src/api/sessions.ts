@@ -29,4 +29,8 @@ export const sessionsApi = {
   getSessionHistory: (): Promise<CompletedSession[]> => {
     return api.get<CompletedSession[]>('/sessions/history')
   },
+
+  leaveSession: (sessionId: string): Promise<{ message: string }> => {
+    return api.post<{ message: string }>(`/sessions/${sessionId}/leave`)
+  },
 }

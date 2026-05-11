@@ -30,7 +30,7 @@ export const quizzesApi = {
     return api.post(`/sessions/${sessionId}/quiz/end`)
   },
 
-  submitQuizAnswers: (sessionQuizId: string, answers: { questionId: string; answerId: number }[]): Promise<QuizSubmission> => {
+  submitQuizAnswers: (sessionQuizId: string, answers: Record<string, string[]>): Promise<QuizSubmission> => {
     return api.post<QuizSubmission>(`/session-quizzes/${sessionQuizId}/submit`, { answers })
   },
 
@@ -41,4 +41,34 @@ export const quizzesApi = {
   getQuizLeaderboard: (sessionQuizId: string): Promise<LeaderboardEntry[]> => {
     return api.get<LeaderboardEntry[]>(`/session-quizzes/${sessionQuizId}/leaderboard`)
   },
+
+  getActiveQuiz: (sessionId: string): Promise<ActiveQuizData | null> => {
+    return api.get<ActiveQuizData | null>(`/sessions/${sessionId}/quiz/active`)
+  },
+}
+
+export interface ActiveQuizAnswer {
+  id: string
+  text: string
+  is_correct: boolean
+}
+
+export interface ActiveQuizQuestion {
+  id: string
+  text: string
+  type: string
+  points: number
+  timer: number
+  order_index: number
+  extra_data?: Record<string, unknown> | null
+  answers: ActiveQuizAnswer[]
+}
+
+export interface ActiveQuizData {
+  session_quiz_id: string
+  quiz_id: string
+  title: string
+  description?: string | null
+  launched_at: string
+  questions: ActiveQuizQuestion[]
 }

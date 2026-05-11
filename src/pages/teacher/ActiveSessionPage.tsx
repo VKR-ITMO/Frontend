@@ -6,7 +6,7 @@ import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 import { reactionsApi } from '../../api/reactions'
-import { quizzesApi } from '../../api/quizzes'
+import { quizzesApi, type ActiveQuizData } from '../../api/quizzes'
 import type { Session, SessionParticipant, ReactionStats, Quiz, SessionQuiz } from '../../api/types'
 
 interface NewQuestion {
@@ -38,6 +38,7 @@ export default function ActiveSessionPage() {
 
   // Launched quizzes state
   const [launchedQuizzes, setLaunchedQuizzes] = useState<(SessionQuiz & { title?: string })[]>([])
+  const [activeQuizData, setActiveQuizData] = useState<ActiveQuizData | null>(null)
 
   // Create quiz state
   const [newQuizTitle, setNewQuizTitle] = useState('')
@@ -116,6 +117,36 @@ export default function ActiveSessionPage() {
     }
     loadQuizzes()
   }, [])
+
+  // Poll for active quiz data (questions) 
+  useEffect(() => {
+    if (!session) return
+    const pollActiveQuiz = async () => {
+      try {
+        const data = await quizzesApi.getActiveQuiz(session.id)
+        setActiveQuizData(data)
+        if (data && !launchedQuizzes.find(q => q.quiz_id === data.quiz_id && !q.ended_at)) {
+          setLaunchedQuizzes(prev => {
+            const exists = prev.find(q => q.quiz_id === data.quiz_id)
+            if (exists) return prev
+            return [...prev, {
+              id: data.session_quiz_id,
+              session_id: session.id,
+              quiz_id: data.quiz_id,
+              launched_at: data.launched_at,
+              started_at: data.launched_at,
+              title: data.title,
+            } as SessionQuiz & { title?: string }]
+          })
+        }
+      } catch {
+        setActiveQuizData(null)
+      }
+    }
+    pollActiveQuiz()
+    const interval = setInterval(pollActiveQuiz, 4000)
+    return () => clearInterval(interval)
+  }, [session])
 
   const handleEndSession = async () => {
     if (!session) return
@@ -230,6 +261,7 @@ export default function ActiveSessionPage() {
     try {
       await quizzesApi.endQuiz(session.id)
       setLaunchedQuizzes(prev => prev.map(q => q.ended_at ? q : { ...q, ended_at: new Date().toISOString() }))
+      setActiveQuizData(null)
     } catch (error) {
       console.error('Failed to end quiz:', error)
     }
@@ -373,6 +405,31 @@ export default function ActiveSessionPage() {
                 </button>
               </div>
             )}
+
+            {/* Show active quiz questions (teacher view) */}
+            {activeQuizData && activeQuizData.questions.length > 0 && (
+              <div className="flex flex-col gap-3">
+                <h3 className="text-sm font-semibold text-zinc-900">Вопросы квиза: {activeQuizData.title}</h3>
+                {activeQuizData.questions.map((q, idx) => (
+                  <div key={q.id} className="bg-white border border-zinc-200 rounded-lg p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <span className="text-xs font-medium text-zinc-400">Вопрос {idx + 1} · {q.type} · {q.points} б. · {q.timer}с</span>
+                    </div>
+                    <p className="text-sm font-medium text-zinc-900 mb-2">{q.text}</p>
+                    {q.answers.length > 0 && (
+                      <div className="flex flex-col gap-1.5">
+                        {q.answers.map((a) => (
+                          <div key={a.id} className={`text-xs px-3 py-2 rounded-lg ${a.is_correct ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-zinc-50 text-zinc-600 border border-zinc-100'}`}>
+                            {a.is_correct && '✓ '}{a.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold text-zinc-900">Запущенные квизы ({launchedQuizzes.length})</h3>
               {launchedQuizzes.map((q, idx) => (
