@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Users } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { useAuth } from '../../contexts/AuthContext'
 import { coursesApi } from '../../api/courses'
-import { sessionsApi } from '../../api/sessions'
-import type { Course, Session } from '../../api/types'
+import type { Course } from '../../api/types'
 
 export default function StudentDashboardPage() {
   const { user } = useAuth()
   const [courses, setCourses] = useState<Course[]>([])
-  const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -22,15 +19,6 @@ export default function StudentDashboardPage() {
       setLoading(true)
       const coursesData = await coursesApi.getCourses()
       setCourses(coursesData.slice(0, 4))
-      
-      // Check for active sessions in enrolled courses
-      // For now, we'll check if there's any active session the student can join
-      try {
-        const session = await sessionsApi.getActiveSession()
-        setActiveSession(session)
-      } catch {
-        setActiveSession(null)
-      }
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -48,30 +36,6 @@ export default function StudentDashboardPage() {
           Вот что происходит с вашими курсами сегодня
         </p>
       </div>
-
-      {activeSession && (
-        <div className="bg-zinc-900 rounded-2xl p-6 flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-500" />
-              <span className="text-sm text-green-400 font-medium">Идёт сейчас</span>
-            </div>
-            <h2 className="text-xl font-semibold text-white">Активная лекция</h2>
-            <p className="text-sm text-zinc-400">Код доступа: {activeSession.access_code}</p>
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-zinc-400">
-              <Users className="w-4 h-4" />
-              <span className="text-sm">{activeSession.total_participants} участников</span>
-            </div>
-            <Link to={`/session/${activeSession.id}/live`}>
-              <Button variant="outline" className="border-white/20 text-white hover:bg-white/10">
-                Присоединиться →
-              </Button>
-            </Link>
-          </div>
-        </div>
-      )}
 
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
