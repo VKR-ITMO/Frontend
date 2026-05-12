@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { coursesApi } from '../../api/courses'
 import { lecturesApi } from '../../api/lectures'
+import { sessionsApi } from '../../api/sessions'
 import type { CourseWithStats, Lecture } from '../../api/types'
 
 export default function StudentCourseDetailPage() {
@@ -18,6 +19,8 @@ export default function StudentCourseDetailPage() {
   const [enrolling, setEnrolling] = useState(false)
   const [enrolled, setEnrolled] = useState(false)
   const [error, setError] = useState('')
+  const [joiningLecture, setJoiningLecture] = useState<string | null>(null)
+  const [activeSessionLectures, setActiveSessionLectures] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (courseId) {
@@ -48,6 +51,22 @@ export default function StudentCourseDetailPage() {
       try {
         const lecturesData = await lecturesApi.getCourseLectures(courseId)
         setLectures(lecturesData)
+
+        // Check which lectures have active sessions
+        const activeLectures = new Set<string>()
+        await Promise.all(
+          lecturesData.map(async (lecture) => {
+            try {
+              const activeSession = await sessionsApi.getActiveSessionForLecture(lecture.id)
+              if (activeSession) {
+                activeLectures.add(lecture.id)
+              }
+            } catch {
+              // No active session or error
+            }
+          })
+        )
+        setActiveSessionLectures(activeLectures)
       } catch {
         // Student might not have access to lectures list
       }
@@ -59,8 +78,23 @@ export default function StudentCourseDetailPage() {
     }
   }
 
-  const handleJoinLecture = () => {
-    navigate(`/student/courses/${courseId}/lecture/waiting`)
+  const handleJoinLecture = async (lectureId: string) => {
+    setJoiningLecture(lectureId)
+    try {
+      const activeSession = await sessionsApi.getActiveSessionForLecture(lectureId)
+      if (activeSession) {
+        // Session is active, join it directly
+        const session = await sessionsApi.joinSession(activeSession.access_code)
+        navigate(`/session/${session.id}/live`, { state: { session } })
+      } else {
+        // No active session, go to waiting page
+        navigate(`/student/courses/${courseId}/lecture/waiting`, { state: { lectureId } })
+      }
+    } catch (error) {
+      console.error('Failed to join lecture:', error)
+    } finally {
+      setJoiningLecture(null)
+    }
   }
 
   if (loading) {
@@ -143,7 +177,21 @@ export default function StudentCourseDetailPage() {
                         <span className="text-sm font-semibold text-zinc-900">{lec.name}</span>
                         <span className="text-sm text-zinc-600">{lec.topic}</span>
                       </div>
-                      <Button size="sm" onClick={handleJoinLecture}>Присоединиться</Button>
+                      <div className="flex items-center gap-2">
+                        {activeSessionLectures.has(lec.id) && (
+                          <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>В эфире</span>
+                          </div>
+                        )}
+                        <Button 
+                          size="sm" 
+                          onClick={() => handleJoinLecture(lec.id)}
+                          disabled={joiningLecture === lec.id}
+                        >
+                          {joiningLecture === lec.id ? 'Подключение...' : 'Присоединиться'}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

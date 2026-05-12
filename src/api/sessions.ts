@@ -14,6 +14,10 @@ export const sessionsApi = {
     return api.get<Session | null>('/sessions/active')
   },
 
+  getActiveSessionForLecture: (lectureId: string): Promise<SessionWithLecture | null> => {
+    return api.get<SessionWithLecture | null>(`/sessions/lecture/${lectureId}/active`)
+  },
+
   getSession: (sessionId: string): Promise<Session> => {
     return api.get<Session>(`/sessions/${sessionId}`)
   },
@@ -22,15 +26,15 @@ export const sessionsApi = {
     return api.post<CompletedSession>(`/sessions/${sessionId}/end`)
   },
 
-  getSessionParticipants: (sessionId: string): Promise<SessionParticipant[]> => {
-    return api.get<SessionParticipant[]>(`/sessions/${sessionId}/participants`)
-  },
-
   getSessionHistory: (): Promise<CompletedSession[]> => {
     return api.get<CompletedSession[]>('/sessions/history')
   },
 
   leaveSession: (sessionId: string): Promise<{ message: string }> => {
     return api.post<{ message: string }>(`/sessions/${sessionId}/leave`)
+  },
+
+  getSessionParticipants: (sessionId: string): Promise<SessionParticipant[]> => {
+    return api.get<SessionParticipant[]>(`/sessions/${sessionId}/participants`)
   },
 }
