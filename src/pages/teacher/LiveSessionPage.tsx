@@ -59,10 +59,13 @@ export default function LiveSessionPage() {
     loadCourses()
   }, [])
 
-  const startSession = async (lectureId: string) => {
+  const startSession = async (lectureId: string, lectureStatus?: string) => {
     setStartingSession(lectureId)
     setStartError('')
     try {
+      if (lectureStatus !== 'PUBLISHED') {
+        await lecturesApi.publishLecture(lectureId)
+      }
       const session = await sessionsApi.startSession(lectureId)
       navigate('/teacher/live/active', { state: { session } })
     } catch (error: any) {
@@ -162,7 +165,7 @@ export default function LiveSessionPage() {
                       <p className="text-sm text-zinc-400 text-center py-2">Нет лекций</p>
                     ) : (
                       <div className="flex flex-col gap-4">
-                        {course.lectures.filter(l => l.status === 'PUBLISHED').map((lec, idx) => (
+                        {course.lectures.filter(l => l.status === 'PUBLISHED' || l.status === 'DRAFT').map((lec, idx) => (
                           <div key={lec.id} className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
                               <span className="text-sm font-medium text-zinc-900 truncate">{lec.topic}</span>
@@ -178,7 +181,7 @@ export default function LiveSessionPage() {
                             </div>
                             <Button 
                               size="sm" 
-                              onClick={() => startSession(lec.id)}
+                              onClick={() => startSession(lec.id, lec.status)}
                               disabled={startingSession === lec.id}
                             >
                               {startingSession === lec.id ? 'Запуск...' : 'Начать'}

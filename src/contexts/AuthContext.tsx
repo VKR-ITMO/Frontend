@@ -6,7 +6,7 @@ import type { User, UserRole } from '../api/types'
 interface AuthContextType {
   user: User | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string) => Promise<User | null>
   register: (email: string, password: string, fullName: string, role: string) => Promise<boolean>
   logout: () => void
   setUser: (user: User | null) => void
@@ -37,14 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth()
   }, [])
 
-  const login = async (email: string, password: string): Promise<boolean> => {
+  const login = async (email: string, password: string): Promise<User | null> => {
     try {
       const response = await authApi.login(email, password)
       setUser(response.user)
-      return true
+      return response.user
     } catch (error) {
       console.error('Login error:', error)
-      return false
+      return null
     }
   }
 

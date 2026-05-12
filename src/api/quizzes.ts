@@ -45,6 +45,25 @@ export const quizzesApi = {
   getActiveQuiz: (sessionId: string): Promise<ActiveQuizData | null> => {
     return api.get<ActiveQuizData | null>(`/sessions/${sessionId}/quiz/active`)
   },
+
+  getSessionQuiz: (sessionQuizId: string): Promise<SessionQuizWithStats> => {
+    return api.get<SessionQuizWithStats>(`/session-quizzes/${sessionQuizId}`)
+  },
+
+  getQuizSessionQuizzes: (quizId: string): Promise<SessionQuizWithStats[]> => {
+    return api.get<SessionQuizWithStats[]>(`/quizzes/${quizId}/session-quizzes`)
+  },
+}
+
+export interface SessionQuizWithStats {
+  id: string
+  session_id: string
+  quiz_id: string
+  launched_at: string
+  ended_at: string | null
+  title: string
+  total_submissions: number
+  average_score: number
 }
 
 export interface ActiveQuizAnswer {

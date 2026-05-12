@@ -60,7 +60,21 @@ export default function QuizEditorPage() {
   const handleSaveQuiz = async () => {
     if (!quizId) return
     try {
-      await quizzesApi.updateQuiz(quizId, { title: quizTitle })
+      const questionsPayload = questions.map((q, idx) => ({
+        text: q.text || `Вопрос ${idx + 1}`,
+        type: q.type.toUpperCase(),
+        points: q.points || 10,
+        timer: 30,
+        order_index: idx,
+        answers: (q.options || []).map((opt, i) => ({
+          text: opt,
+          is_correct: (q.correctAnswers || []).includes(i),
+        })),
+      }))
+      await quizzesApi.updateQuiz(quizId, {
+        title: quizTitle,
+        questions: questionsPayload,
+      })
       navigate(`/teacher/courses/${courseId}`)
     } catch (error) {
       console.error('Failed to save quiz:', error)
@@ -87,7 +101,25 @@ export default function QuizEditorPage() {
   }
 
   const addQuestion = () => {
-    setQuestions([...questions, { id: Date.now().toString(), type: selectedType, text: formText, points: parseInt(formPoints) || 10 }])
+    const newQuestion: Question = {
+      id: Date.now().toString(),
+      type: selectedType,
+      text: formText,
+      points: parseInt(formPoints) || 10,
+      options: (selectedType === 'single' || selectedType === 'multiple')
+        ? formOptions.filter(o => o.trim())
+        : selectedType === 'boolean'
+          ? ['Верно', 'Неверно']
+          : selectedType === 'ordering'
+            ? formOrderItems.filter(o => o.trim())
+            : undefined,
+      correctAnswers: (selectedType === 'single' || selectedType === 'multiple')
+        ? formCorrect
+        : selectedType === 'boolean'
+          ? formCorrect
+          : undefined,
+    }
+    setQuestions([...questions, newQuestion])
     setAddOpen(false)
     resetForm()
   }

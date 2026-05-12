@@ -39,7 +39,6 @@ export default function TeacherCourseDetailPage() {
   const [materialUrl, setMaterialUrl] = useState('')
   const [materialDesc, setMaterialDesc] = useState('')
   const [loading, setLoading] = useState(true)
-  const [courseImage, setCourseImage] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   
   const [tab, setTab] = useState('lectures')
@@ -219,26 +218,19 @@ export default function TeacherCourseDetailPage() {
     }
   }
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setCourseImage(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string)
-      }
-      reader.readAsDataURL(file)
-      // Auto-upload when file is selected
-      handleCourseImageUpload()
-    }
-  }
+    if (!file || !courseId) return
 
-  const handleCourseImageUpload = async () => {
-    if (!courseImage || !courseId) return
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
 
     try {
       const formData = new FormData()
-      formData.append('file', courseImage)
+      formData.append('file', file)
 
       const response = await fetch(`${import.meta.env.VITE_API_URL}/courses/${courseId}/image`, {
         method: 'POST',
@@ -250,12 +242,11 @@ export default function TeacherCourseDetailPage() {
 
       if (!response.ok) throw new Error('Upload failed')
 
-      // Reload course data to get the new image URL
       loadCourseData()
-      setCourseImage(null)
       setImagePreview(null)
     } catch (error) {
       console.error('Course image upload failed:', error)
+      setImagePreview(null)
       alert('Не удалось загрузить изображение курса')
     }
   }

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, Clock } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Clock, Download } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { coursesApi } from '../../api/courses'
 import { lecturesApi } from '../../api/lectures'
 import { sessionsApi } from '../../api/sessions'
+import { materialsApi, type Material } from '../../api/materials'
 import type { CourseWithStats, Lecture } from '../../api/types'
 
 export default function StudentCourseDetailPage() {
@@ -22,6 +23,7 @@ export default function StudentCourseDetailPage() {
   const [joinError, setJoinError] = useState('')
   const [joiningLecture, setJoiningLecture] = useState<string | null>(null)
   const [activeSessionLectures, setActiveSessionLectures] = useState<Set<string>>(new Set())
+  const [materials, setMaterials] = useState<Material[]>([])
 
   useEffect(() => {
     if (courseId) {
@@ -48,10 +50,14 @@ export default function StudentCourseDetailPage() {
       const courseData = await coursesApi.getCourse(courseId)
       setCourse(courseData)
 
-      // Load lectures
+      // Load lectures and materials
       try {
-        const lecturesData = await lecturesApi.getCourseLectures(courseId)
+        const [lecturesData, materialsData] = await Promise.all([
+          lecturesApi.getCourseLectures(courseId),
+          materialsApi.getMaterials(courseId).catch(() => [] as Material[])
+        ])
         setLectures(lecturesData)
+        setMaterials(materialsData)
 
         // Check which lectures have active sessions
         const activeLectures = new Set<string>()
@@ -216,7 +222,21 @@ export default function StudentCourseDetailPage() {
 
           {activeTab === 'Материалы' && (
             <div className="p-8 flex flex-col gap-3">
-              <p className="text-center py-4 text-zinc-500">Материалы пока не добавлены</p>
+              {materials.length === 0 ? (
+                <p className="text-center py-4 text-zinc-500">Материалы пока не добавлены</p>
+              ) : materials.map((m) => (
+                <div key={m.id} className="bg-zinc-50 rounded-lg p-4 flex items-center justify-between">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-semibold text-zinc-900">{m.name}</span>
+                    <span className="text-xs text-zinc-500">{m.description || ''}{m.file_size ? ` • ${m.file_size}` : ''}</span>
+                  </div>
+                  {m.url && (
+                    <a href={m.url} target="_blank" rel="noopener noreferrer" className="p-2 hover:bg-zinc-200 rounded-full transition-colors">
+                      <Download className="w-4 h-4 text-zinc-600" />
+                    </a>
+                  )}
+                </div>
+              ))}
             </div>
           )}
 
