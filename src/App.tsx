@@ -17,7 +17,6 @@ import StudentCourseDetailPage from './pages/student/CourseDetailPage'
 import StudentProfilePage from './pages/student/ProfilePage'
 import StudentEditProfilePage from './pages/student/EditProfilePage'
 import LectureWaitingPage from './pages/student/LectureWaitingPage'
-import LectureLivePage from './pages/student/LectureLivePage'
 import LectureResultsPage from './pages/student/LectureResultsPage'
 
 import TeacherDashboardPage from './pages/teacher/DashboardPage'
@@ -53,7 +52,6 @@ export default function App() {
         <Route path="courses" element={<StudentCoursesPage />} />
         <Route path="courses/:courseId" element={<StudentCourseDetailPage />} />
         <Route path="courses/:courseId/lecture/waiting" element={<LectureWaitingPage />} />
-        <Route path="courses/:courseId/lecture/live" element={<LectureLivePage />} />
         <Route path="courses/:courseId/lecture/results" element={<LectureResultsPage />} />
         <Route path="profile" element={<StudentProfilePage />} />
         <Route path="profile/edit" element={<StudentEditProfilePage />} />
