@@ -7,11 +7,12 @@ import Modal from '../../components/ui/Modal'
 import { quizzesApi } from '../../api/quizzes'
 import type { Quiz, QuizWithQuestions } from '../../api/types'
 
-type QuestionType = 'single' | 'multiple' | 'matching' | 'ordering' | 'file'
+type QuestionType = 'single' | 'multiple' | 'boolean' | 'matching' | 'ordering' | 'file'
 
 const questionTypeLabels: Record<QuestionType, string> = {
   single: 'Одиночный выбор',
   multiple: 'Множественный выбор',
+  boolean: 'Верно/Неверно',
   matching: 'Соответствие',
   ordering: 'Расстановка по порядку',
   file: 'Загрузка файла',
@@ -93,7 +94,7 @@ export default function QuizEditorPage() {
 
   const removeQuestion = (id: string) => setQuestions(questions.filter((q) => q.id !== id))
 
-  const questionTypes: QuestionType[] = ['single', 'multiple', 'matching', 'ordering', 'file']
+  const questionTypes: QuestionType[] = ['single', 'multiple', 'boolean', 'matching', 'ordering', 'file']
 
   if (loading) {
     return <div className="flex items-center justify-center min-h-screen"><p className="text-zinc-500">Загрузка...</p></div>
@@ -186,6 +187,34 @@ export default function QuizEditorPage() {
                 </div>
               ))}
               <button onClick={() => setFormOptions([...formOptions, ''])} className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 w-fit"><Plus className="w-3 h-3" /> Добавить вариант</button>
+            </div>
+          )}
+
+          {selectedType === 'boolean' && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium text-zinc-900 tracking-wide">Правильный ответ</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="boolean_correct"
+                    checked={formCorrect[0] === 0}
+                    onChange={() => setFormCorrect([0])}
+                    className="accent-zinc-900"
+                  />
+                  <span className="text-sm text-zinc-700">Верно</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="boolean_correct"
+                    checked={formCorrect[0] === 1}
+                    onChange={() => setFormCorrect([1])}
+                    className="accent-zinc-900"
+                  />
+                  <span className="text-sm text-zinc-700">Неверно</span>
+                </label>
+              </div>
             </div>
           )}
 

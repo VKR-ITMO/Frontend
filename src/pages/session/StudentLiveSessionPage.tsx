@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star } from 'lucide-react'
+import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star, Check, X, Upload } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { reactionsApi } from '../../api/reactions'
 import { sessionsApi } from '../../api/sessions'
@@ -18,6 +18,7 @@ interface ActiveQuiz {
   textAnswers: Record<string, string>
   orderingAnswers: Record<string, string[]>
   matchingAnswers: Record<string, Record<string, string>>
+  fileAnswers: Record<string, { file_id: string; filename: string }>
 }
 
 export default function StudentLiveSessionPage() {
@@ -96,6 +97,7 @@ export default function StudentLiveSessionPage() {
             textAnswers: {},
             orderingAnswers: {},
             matchingAnswers: {},
+            fileAnswers: {},
           })
         }
       } catch { /* no active quiz */ }
@@ -159,13 +161,66 @@ export default function StudentLiveSessionPage() {
     setQuiz({ ...quiz, textAnswers: { ...quiz.textAnswers, [questionId]: text } })
   }
 
+  const handleFileUpload = async (questionId: string, file: File) => {
+    if (!quiz) return
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/quizzes/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: formData,
+      })
+      
+      if (!response.ok) throw new Error('Upload failed')
+      
+      const data = await response.json()
+      setQuiz({
+        ...quiz,
+        fileAnswers: {
+          ...quiz.fileAnswers,
+          [questionId]: { file_id: data.file_id, filename: data.filename }
+        }
+      })
+    } catch (error) {
+      console.error('File upload failed:', error)
+      setError('Не удалось загрузить файл')
+    }
+  }
+
+  const setOrderingAnswer = (questionId: string, orderedIds: string[]) => {
+    if (!quiz) return
+    setQuiz({ ...quiz, orderingAnswers: { ...quiz.orderingAnswers, [questionId]: orderedIds } })
+  }
+
+  const setMatchingAnswer = (questionId: string, leftId: string, rightId: string) => {
+    if (!quiz) return
+    setQuiz({
+      ...quiz,
+      matchingAnswers: {
+        ...quiz.matchingAnswers,
+        [questionId]: { ...quiz.matchingAnswers[questionId], [leftId]: rightId }
+      }
+    })
+  }
+
   const submitQuiz = async () => {
     if (!quiz) return
     try {
       const answers: Record<string, string[]> = {}
       for (const q of quiz.questions) {
-        if (q.type === 'TEXT' || q.type === 'FILE') {
+        if (q.type === 'TEXT') {
           answers[q.id] = [quiz.textAnswers[q.id] || '']
+        } else if (q.type === 'FILE') {
+          answers[q.id] = [quiz.fileAnswers[q.id]?.file_id || '']
+        } else if (q.type === 'ORDERING') {
+          answers[q.id] = quiz.orderingAnswers[q.id] || []
+        } else if (q.type === 'MATCHING') {
+          const pairs = quiz.matchingAnswers[q.id] || {}
+          answers[q.id] = [JSON.stringify(pairs)]
         } else {
           answers[q.id] = quiz.selectedAnswers[q.id] || []
         }
@@ -268,6 +323,9 @@ export default function StudentLiveSessionPage() {
             onSelectSingle={(aid) => selectSingleAnswer(currentQ.id, aid)}
             onToggleMultiple={(aid) => toggleMultipleAnswer(currentQ.id, aid)}
             onTextChange={(text) => setTextAnswer(currentQ.id, text)}
+            quiz={quiz}
+            handleFileUpload={handleFileUpload}
+            setMatchingAnswer={setMatchingAnswer}
           />
           <div className="flex justify-between mt-8">
             {quiz.currentQuestion > 0 && (
@@ -408,6 +466,9 @@ function QuizQuestionView({
   onSelectSingle,
   onToggleMultiple,
   onTextChange,
+  quiz,
+  handleFileUpload,
+  setMatchingAnswer,
 }: {
   question: ActiveQuizQuestion
   selectedAnswers: string[]
@@ -415,6 +476,9 @@ function QuizQuestionView({
   onSelectSingle: (answerId: string) => void
   onToggleMultiple: (answerId: string) => void
   onTextChange: (text: string) => void
+  quiz: ActiveQuiz
+  handleFileUpload: (questionId: string, file: File) => void
+  setMatchingAnswer: (questionId: string, leftId: string, rightId: string) => void
 }) {
   const qType = question.type
 
@@ -478,13 +542,16 @@ function QuizQuestionView({
             <button
               key={a.id}
               onClick={() => onSelectSingle(a.id)}
-              className={`flex-1 py-6 rounded-xl border-2 text-center font-semibold text-base transition-colors ${
+              className={`flex-1 py-6 rounded-xl border-2 flex flex-col items-center justify-center gap-2 transition-colors ${
                 selectedAnswers.includes(a.id)
                   ? 'border-zinc-900 bg-zinc-900 text-white'
                   : 'border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300'
               }`}
             >
-              {a.text}
+              <div className="w-10 h-10 rounded-full flex items-center justify-center">
+                {a.text === 'Верно' ? <Check className="w-6 h-6" /> : <X className="w-6 h-6" />}
+              </div>
+              <span className="font-semibold text-base">{a.text}</span>
             </button>
           ))}
         </div>
@@ -492,51 +559,110 @@ function QuizQuestionView({
 
       {/* TEXT answer */}
       {qType === 'TEXT' && (
-        <textarea
-          value={textAnswer}
-          onChange={(e) => onTextChange(e.target.value)}
-          placeholder="Введите ваш ответ..."
-          className="w-full border border-zinc-200 rounded-xl p-4 text-sm text-zinc-900 resize-none h-32 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
-        />
-      )}
-
-      {/* FILE upload - requires backend implementation */}
-      {qType === 'FILE' && (
-        <div className="border-2 border-dashed border-zinc-200 rounded-xl p-8 flex flex-col items-center justify-center gap-3 bg-zinc-50">
-          <p className="text-sm text-zinc-600 font-medium">Загрузка файлов не реализована</p>
-          <p className="text-xs text-zinc-400">Требуется backend endpoint для загрузки файлов</p>
+        <div className="flex flex-col gap-2">
+          <textarea
+            value={textAnswer}
+            onChange={(e) => onTextChange(e.target.value)}
+            placeholder="Введите ваш развёрнутый ответ здесь..."
+            maxLength={500}
+            className="w-full border border-zinc-200 rounded-xl p-4 text-sm text-zinc-900 resize-none h-32 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
+          />
+          <div className="text-xs text-zinc-400 text-right">{textAnswer.length}/500 символов</div>
         </div>
       )}
 
-      {/* ORDERING - basic implementation */}
+      {/* FILE upload */}
+      {qType === 'FILE' && (
+        <div className="flex flex-col gap-2">
+          <div
+            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-colors ${
+              quiz.fileAnswers[question.id]
+                ? 'border-zinc-900 bg-zinc-50'
+                : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
+            }`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault()
+              const file = e.dataTransfer.files[0]
+              if (file) handleFileUpload(question.id, file)
+            }}
+          >
+            {quiz.fileAnswers[question.id] ? (
+              <>
+                <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center">
+                  <Check className="w-6 h-6 text-zinc-900" />
+                </div>
+                <p className="text-sm font-medium text-zinc-900">{quiz.fileAnswers[question.id].filename}</p>
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center">
+                  <Upload className="w-6 h-6 text-zinc-400" />
+                </div>
+                <p className="text-sm font-medium text-zinc-600">Нажмите или перетащите файл</p>
+                <p className="text-xs text-zinc-400">PDF, DOC, DOCX, JPG, PNG · до 10 МБ</p>
+              </>
+            )}
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) handleFileUpload(question.id, file)
+              }}
+              className="hidden"
+              id={`file-upload-${question.id}`}
+            />
+            {!quiz.fileAnswers[question.id] && (
+              <label
+                htmlFor={`file-upload-${question.id}`}
+                className="text-xs text-zinc-500 hover:text-zinc-900 cursor-pointer"
+              >
+                Выбрать файл
+              </label>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ORDERING - drag and drop */}
       {qType === 'ORDERING' && (
         <div className="flex flex-col gap-2.5">
-          <p className="text-xs text-zinc-400">Перетащите элементы для упорядочивания (не реализовано)</p>
+          <p className="text-xs text-zinc-400 text-center">Перетащите элементы в правильном порядке</p>
           {question.answers.map((a, idx) => (
             <div
               key={a.id}
-              className="bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 flex items-center gap-3 cursor-grab opacity-50"
+              className="bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 flex items-center gap-3 cursor-grab hover:border-zinc-300 transition-colors"
+              draggable
+              onDragStart={(e) => e.dataTransfer.setData('text/plain', a.id)}
             >
               <GripVertical className="w-4 h-4 text-zinc-300 shrink-0" />
-              <span className="text-xs font-semibold text-zinc-400 w-4">{idx + 1}</span>
+              <div className="bg-zinc-900 rounded-full w-7 h-7 flex items-center justify-center shrink-0">
+                <span className="text-xs font-bold text-white">{idx + 1}</span>
+              </div>
               <span className="text-sm font-medium text-zinc-800">{a.text}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* MATCHING - basic implementation */}
+      {/* MATCHING - dropdown matching */}
       {qType === 'MATCHING' && (
-        <div className="flex flex-col gap-2.5">
-          <p className="text-xs text-zinc-400">Сопоставление элементов (не реализовано)</p>
+        <div className="flex flex-col gap-3">
           {question.answers.map((a) => (
-            <div key={a.id} className="flex items-center gap-4 opacity-50">
-              <div className="flex-1 bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5">
-                <span className="text-sm font-medium text-zinc-800">{a.text}</span>
+            <div key={a.id} className="flex items-center gap-3">
+              <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-4 py-3">
+                <span className="text-sm font-semibold text-zinc-900">{a.text}</span>
               </div>
-              <span className="text-zinc-300">↔</span>
-              <select className="flex-1 bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 text-sm text-zinc-800 focus:outline-none" disabled>
-                <option value="">Выберите...</option>
+              <div className="w-4 h-4 flex items-center justify-center">
+                <span className="text-zinc-300">→</span>
+              </div>
+              <select
+                className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-4 py-3 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
+                value={quiz.matchingAnswers[question.id]?.[a.id] || ''}
+                onChange={(e) => setMatchingAnswer(question.id, a.id, e.target.value)}
+              >
+                <option value="">— выберите —</option>
                 {question.answers.map((opt) => (
                   <option key={opt.id} value={opt.id}>{opt.text}</option>
                 ))}
