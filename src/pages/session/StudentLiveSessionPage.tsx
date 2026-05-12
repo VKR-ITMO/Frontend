@@ -28,6 +28,7 @@ export default function StudentLiveSessionPage() {
   const [session, setSession] = useState<SessionWithLecture | null>(location.state?.session || null)
   const [elapsed, setElapsed] = useState('00:00')
   const [participantsList, setParticipantsList] = useState<SessionParticipant[]>([])
+  const [error, setError] = useState('')
   const [quiz, setQuiz] = useState<ActiveQuiz | null>(null)
   const [quizResult, setQuizResult] = useState<{ score: number; correct: number; total: number } | null>(null)
   const [sessionEnded, setSessionEnded] = useState(false)
@@ -111,8 +112,16 @@ export default function StudentLiveSessionPage() {
       setLastReaction(type)
       setReactionCounts(prev => ({ ...prev, [type]: prev[type as keyof typeof prev] + 1 }))
       setTimeout(() => setLastReaction(null), 5000)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Reaction failed:', error)
+      const errorMsg = error?.message || 'Не удалось отправить реакцию'
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+        setError('Сессия истекла. Войдите снова.')
+      } else if (errorMsg.includes('404')) {
+        setError('Сессия не найдена.')
+      } else {
+        setError('Не удалось отправить реакцию.')
+      }
     }
   }
 
@@ -164,13 +173,25 @@ export default function StudentLiveSessionPage() {
       try {
         const result = await quizzesApi.submitQuizAnswers(quiz.sessionQuizId, answers)
         setQuizResult({ score: result.score, correct: 0, total: quiz.questions.length })
-      } catch {
+      } catch (error: any) {
+        console.error('Submit failed:', error)
+        const errorMsg = error?.message || 'Не удалось отправить ответы'
+        if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+          setError('Сессия истекла. Войдите снова.')
+        } else if (errorMsg.includes('404')) {
+          setError('Квиз не найден.')
+        } else if (errorMsg.includes('already submitted')) {
+          setError('Вы уже отправили ответы на этот квиз.')
+        } else {
+          setError('Не удалось отправить ответы.')
+        }
         setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
       }
       setQuiz(null)
       setQuizSubmitted(true)
-    } catch (error) {
+    } catch (error: any) {
       console.error('Submit failed:', error)
+      setError('Не удалось отправить ответы.')
     }
   }
 
@@ -185,6 +206,7 @@ export default function StudentLiveSessionPage() {
           </div>
           <h1 className="text-2xl font-bold text-zinc-900 mb-2">Сессия завершена</h1>
           <p className="text-sm text-zinc-500 mb-6">Спасибо за участие в лекции!</p>
+          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">{error}</p>}
 
           <div className="grid grid-cols-2 gap-3 mb-6">
             <div className="bg-zinc-50 rounded-xl p-4">
@@ -238,6 +260,7 @@ export default function StudentLiveSessionPage() {
           <span className="text-xs text-zinc-400">Вопрос {quiz.currentQuestion + 1} из {quiz.questions.length}</span>
         </div>
         <div className="px-36 py-8 max-w-[722px] mx-auto">
+          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">{error}</p>}
           <QuizQuestionView
             question={currentQ}
             selectedAnswers={quiz.selectedAnswers[currentQ.id] || []}

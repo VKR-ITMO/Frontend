@@ -13,6 +13,7 @@ export default function LectureWaitingPage() {
   const [lecture, setLecture] = useState<Lecture | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [joinError, setJoinError] = useState('')
 
   useEffect(() => {
     if (!lectureId) {
@@ -33,9 +34,18 @@ export default function LectureWaitingPage() {
           const session = await sessionsApi.joinSession(activeSession.access_code)
           navigate(`/session/${session.id}/live`, { state: { session } })
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to load lecture:', err)
-        setError('Не удалось загрузить лекцию')
+        const errorMsg = err?.message || 'Не удалось загрузить лекцию'
+        if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+          setError('Сессия истекла. Войдите снова.')
+        } else if (errorMsg.includes('404')) {
+          setError('Лекция не найдена.')
+        } else if (errorMsg.includes('403')) {
+          setError('Нет доступа к этой лекции.')
+        } else {
+          setError(errorMsg)
+        }
       } finally {
         setLoading(false)
       }
@@ -53,8 +63,14 @@ export default function LectureWaitingPage() {
           const session = await sessionsApi.joinSession(activeSession.access_code)
           navigate(`/session/${session.id}/live`, { state: { session } })
         }
-      } catch {
-        // No active session yet
+      } catch (err: any) {
+        const errorMsg = err?.message || ''
+        if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+          setJoinError('Сессия истекла. Войдите снова.')
+        } else if (errorMsg.includes('already in this session')) {
+          setJoinError('Вы уже присоединены к этой сессии.')
+        }
+        // Other errors are ignored during polling
       }
     }, 3000)
 
@@ -74,6 +90,7 @@ export default function LectureWaitingPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <p className="text-zinc-500">{error || 'Лекция не найдена'}</p>
+          {joinError && <p className="text-sm text-red-500 mt-2">{joinError}</p>}
           <Link to="/student/courses" className="text-zinc-900 text-sm mt-4 inline-block">
             Вернуться к курсам
           </Link>
@@ -113,6 +130,7 @@ export default function LectureWaitingPage() {
             <p className="text-sm text-zinc-600 text-center max-w-md">{lecture.description}</p>
           </>
         )}
+        {joinError && <p className="text-sm text-red-500 mt-2">{joinError}</p>}
       </div>
 
       <div className="flex items-center gap-2">

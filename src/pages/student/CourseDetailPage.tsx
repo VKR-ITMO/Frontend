@@ -19,6 +19,7 @@ export default function StudentCourseDetailPage() {
   const [enrolling, setEnrolling] = useState(false)
   const [enrolled, setEnrolled] = useState(false)
   const [error, setError] = useState('')
+  const [joinError, setJoinError] = useState('')
   const [joiningLecture, setJoiningLecture] = useState<string | null>(null)
   const [activeSessionLectures, setActiveSessionLectures] = useState<Set<string>>(new Set())
 
@@ -80,6 +81,7 @@ export default function StudentCourseDetailPage() {
 
   const handleJoinLecture = async (lectureId: string) => {
     setJoiningLecture(lectureId)
+    setJoinError('')
     try {
       const activeSession = await sessionsApi.getActiveSessionForLecture(lectureId)
       if (activeSession) {
@@ -90,8 +92,20 @@ export default function StudentCourseDetailPage() {
         // No active session, go to waiting page
         navigate(`/student/courses/${courseId}/lecture/waiting`, { state: { lectureId } })
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to join lecture:', error)
+      const errorMsg = error?.message || 'Не удалось присоединиться к лекции'
+      if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
+        setJoinError('Сессия истекла. Войдите снова.')
+      } else if (errorMsg.includes('404')) {
+        setJoinError('Лекция или сессия не найдена.')
+      } else if (errorMsg.includes('403')) {
+        setJoinError('Нет доступа к этой лекции.')
+      } else if (errorMsg.includes('already in this session')) {
+        setJoinError('Вы уже присоединены к этой сессии.')
+      } else {
+        setJoinError(errorMsg)
+      }
     } finally {
       setJoiningLecture(null)
     }
@@ -171,6 +185,7 @@ export default function StudentCourseDetailPage() {
               {upcomingLectures.length > 0 && (
                 <div className="flex flex-col gap-3">
                   <h3 className="text-sm font-semibold text-zinc-900">Лекции</h3>
+                  {joinError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{joinError}</p>}
                   {upcomingLectures.map((lec) => (
                     <div key={lec.id} className="bg-zinc-50 rounded-lg p-4 flex items-center justify-between">
                       <div className="flex flex-col gap-1">
@@ -184,8 +199,8 @@ export default function StudentCourseDetailPage() {
                             <span>В эфире</span>
                           </div>
                         )}
-                        <Button 
-                          size="sm" 
+                        <Button
+                          size="sm"
                           onClick={() => handleJoinLecture(lec.id)}
                           disabled={joiningLecture === lec.id}
                         >

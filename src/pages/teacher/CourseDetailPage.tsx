@@ -34,6 +34,7 @@ export default function TeacherCourseDetailPage() {
   const [members, setMembers] = useState<User[]>([])
   const [materials, setMaterials] = useState<Material[]>([])
   const [lectureError, setLectureError] = useState('')
+  const [startError, setStartError] = useState('')
   const [materialName, setMaterialName] = useState('')
   const [materialUrl, setMaterialUrl] = useState('')
   const [materialDesc, setMaterialDesc] = useState('')
@@ -170,6 +171,7 @@ export default function TeacherCourseDetailPage() {
 
   const handleStartSession = async () => {
     if (!selectedLecture) return
+    setStartError('')
     try {
       if (selectedLecture.status !== 'PUBLISHED') {
         await lecturesApi.publishLecture(selectedLecture.id)
@@ -177,8 +179,20 @@ export default function TeacherCourseDetailPage() {
       const session = await sessionsApi.startSession(selectedLecture.id)
       setStartOpen(false)
       navigate('/teacher/live/active', { state: { session } })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start session:', error)
+      const errorMsg = error?.message || 'Не удалось начать лекцию'
+      if (errorMsg.includes('already have an active session')) {
+        setStartError('У вас уже есть активная сессия. Сначала завершите её.')
+      } else if (errorMsg.includes('not found')) {
+        setStartError('Лекция не найдена.')
+      } else if (errorMsg.includes('Only teachers')) {
+        setStartError('Только преподаватели могут начинать лекции.')
+      } else if (errorMsg.includes('own lectures')) {
+        setStartError('Вы можете начинать только свои лекции.')
+      } else {
+        setStartError(errorMsg)
+      }
     }
   }
 
@@ -456,7 +470,7 @@ export default function TeacherCourseDetailPage() {
       </Modal>
 
       {/* Start Session Modal */}
-      <Modal open={startOpen} onClose={() => setStartOpen(false)} title="Начать лекцию?">
+      <Modal open={startOpen} onClose={() => { setStartOpen(false); setStartError('') }} title="Начать лекцию?">
         {selectedLecture && (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-5">
@@ -474,8 +488,9 @@ export default function TeacherCourseDetailPage() {
             </div>
           </div>
         )}
+        {startError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mt-4">{startError}</p>}
         <div className="flex gap-4 mt-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setStartOpen(false)}>Отмена</Button>
+          <Button variant="secondary" className="flex-1" onClick={() => { setStartOpen(false); setStartError('') }}>Отмена</Button>
           <Button className="flex-1" onClick={handleStartSession}>Начать</Button>
         </div>
       </Modal>
