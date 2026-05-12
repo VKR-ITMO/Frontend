@@ -295,6 +295,32 @@ export default function ActiveSessionPage() {
 
   const handleCreateQuiz = async () => {
     if (!newQuizTitle || !session || creatingQuiz) return
+
+    // Валидация: для ORDERING нужно минимум 2 непустых элемента,
+    // для MATCHING — минимум по 2 в каждом столбце.
+    for (let i = 0; i < newQuizQuestions.length; i++) {
+      const q = newQuizQuestions[i]
+      if (q.type === 'ORDERING') {
+        const items = (q.orderingItems || []).filter(o => o.trim())
+        if (items.length < 2) {
+          setCreateQuizError(`Вопрос ${i + 1}: добавьте минимум 2 элемента для упорядочивания`)
+          return
+        }
+      }
+      if (q.type === 'MATCHING') {
+        const left = (q.matchingLeft || []).filter(o => o.trim())
+        const right = (q.matchingRight || []).filter(o => o.trim())
+        if (left.length < 2 || right.length < 2 || left.length !== right.length) {
+          setCreateQuizError(`Вопрос ${i + 1}: левый и правый столбцы должны содержать одинаковое число (минимум 2) непустых элементов`)
+          return
+        }
+      }
+      if ((q.type === 'SINGLE' || q.type === 'MULTIPLE') && (q.answers || []).filter(a => a.text.trim()).length < 2) {
+        setCreateQuizError(`Вопрос ${i + 1}: добавьте минимум 2 непустых варианта ответа`)
+        return
+      }
+    }
+
     setCreatingQuiz(true)
     setCreateQuizError('')
     try {
