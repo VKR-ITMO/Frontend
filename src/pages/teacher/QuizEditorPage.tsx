@@ -25,6 +25,11 @@ interface Question {
   points: number
   options?: string[]
   correctAnswers?: number[]
+  // ORDERING: the ordered list of item texts (correct order)
+  orderingItems?: string[]
+  // MATCHING: parallel lists; matchingLeft[i] ↔ matchingRight[i] is the correct pair
+  matchingLeft?: string[]
+  matchingRight?: string[]
 }
 
 export default function QuizEditorPage() {
@@ -50,6 +55,50 @@ export default function QuizEditorPage() {
       setQuiz(data)
       setQuizTitle(data.title)
       setQuizDescription(data.description || '')
+
+      // Map existing backend questions into local Question shape
+      // Backend question fields: id, text, type (UPPERCASE enum), points, timer, answers[], extra_data
+      const backendQuestions = (data as unknown as {
+        questions: Array<{
+          id: string
+          text: string
+          type: string
+          points: number
+          timer?: number
+          extra_data?: Record<string, unknown> | null
+          answers: Array<{ id: string; text: string; is_correct: boolean }>
+        }>
+      }).questions || []
+
+      const mapped: Question[] = backendQuestions.map((bq) => {
+        const localType = bq.type.toLowerCase() as QuestionType
+        const extra = (bq.extra_data || {}) as {
+          correct_order?: string[]
+          left_column?: string[]
+          right_column?: string[]
+        }
+        const q: Question = {
+          id: bq.id,
+          type: localType,
+          text: bq.text,
+          points: bq.points,
+        }
+        if (localType === 'single' || localType === 'multiple' || localType === 'boolean') {
+          q.options = bq.answers.map((a) => a.text)
+          q.correctAnswers = bq.answers
+            .map((a, i) => (a.is_correct ? i : -1))
+            .filter((i) => i >= 0)
+        } else if (localType === 'ordering') {
+          q.orderingItems = extra.correct_order && extra.correct_order.length > 0
+            ? extra.correct_order
+            : bq.answers.map((a) => a.text)
+        } else if (localType === 'matching') {
+          q.matchingLeft = extra.left_column || []
+          q.matchingRight = extra.right_column || []
+        }
+        return q
+      })
+      setQuestions(mapped)
     } catch (error) {
       console.error('Failed to load quiz:', error)
     } finally {
@@ -60,17 +109,55 @@ export default function QuizEditorPage() {
   const handleSaveQuiz = async () => {
     if (!quizId) return
     try {
-      const questionsPayload = questions.map((q, idx) => ({
-        text: q.text || `Вопрос ${idx + 1}`,
-        type: q.type.toUpperCase(),
-        points: q.points || 10,
-        timer: 30,
-        order_index: idx,
-        answers: (q.options || []).map((opt, i) => ({
-          text: opt,
-          is_correct: (q.correctAnswers || []).includes(i),
-        })),
-      }))
+      const questionsPayload = questions.map((q, idx) => {
+        const base = {
+          text: q.text || `Вопрос ${idx + 1}`,
+          type: q.type.toUpperCase(),
+          points: q.points || 10,
+          timer: 30,
+          order_index: idx,
+        }
+
+        if (q.type === 'single' || q.type === 'multiple' || q.type === 'boolean') {
+          return {
+            ...base,
+            answers: (q.options || []).map((opt, i) => ({
+              text: opt,
+              is_correct: (q.correctAnswers || []).includes(i),
+            })),
+          }
+        }
+
+        if (q.type === 'ordering') {
+          const items = q.orderingItems || []
+          return {
+            ...base,
+            answers: items.map((item, i) => ({ text: item, is_correct: i === 0 })),
+            extra_data: { correct_order: items },
+          }
+        }
+
+        if (q.type === 'matching') {
+          const left = q.matchingLeft || []
+          const right = q.matchingRight || []
+          const correct_pairs: Record<string, string> = {}
+          for (let i = 0; i < left.length && i < right.length; i++) {
+            correct_pairs[left[i]] = right[i]
+          }
+          return {
+            ...base,
+            answers: [],
+            extra_data: {
+              left_column: left,
+              right_column: right,
+              correct_pairs,
+            },
+          }
+        }
+
+        // text / file
+        return { ...base, answers: [] }
+      })
       await quizzesApi.updateQuiz(quizId, {
         title: quizTitle,
         questions: questionsPayload,
@@ -110,14 +197,15 @@ export default function QuizEditorPage() {
         ? formOptions.filter(o => o.trim())
         : selectedType === 'boolean'
           ? ['Верно', 'Неверно']
-          : selectedType === 'ordering'
-            ? formOrderItems.filter(o => o.trim())
-            : undefined,
+          : undefined,
       correctAnswers: (selectedType === 'single' || selectedType === 'multiple')
         ? formCorrect
         : selectedType === 'boolean'
           ? formCorrect
           : undefined,
+      orderingItems: selectedType === 'ordering' ? formOrderItems.filter(o => o.trim()) : undefined,
+      matchingLeft: selectedType === 'matching' ? formLeftCol.filter(o => o.trim()) : undefined,
+      matchingRight: selectedType === 'matching' ? formRightCol.filter(o => o.trim()) : undefined,
     }
     setQuestions([...questions, newQuestion])
     setAddOpen(false)

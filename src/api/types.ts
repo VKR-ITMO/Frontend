@@ -128,6 +128,7 @@ export interface SessionParticipant {
   student_email: string
   joined_at: string
   left_at?: string | null
+  total_score?: number
 }
 
 export interface CompletedSession {

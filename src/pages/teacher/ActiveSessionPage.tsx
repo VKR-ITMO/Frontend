@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 import { reactionsApi } from '../../api/reactions'
-import { quizzesApi, type ActiveQuizData } from '../../api/quizzes'
+import { quizzesApi, type ActiveQuizData, type SubmissionsDetailsResponse } from '../../api/quizzes'
 import type { Session, SessionParticipant, ReactionStats, Quiz, SessionQuiz } from '../../api/types'
 
 interface NewQuestion {
@@ -43,6 +43,13 @@ export default function ActiveSessionPage() {
   // Launched quizzes state
   const [launchedQuizzes, setLaunchedQuizzes] = useState<(SessionQuiz & { title?: string })[]>([])
   const [activeQuizData, setActiveQuizData] = useState<ActiveQuizData | null>(null)
+
+  // View submissions modal
+  const [submissionsOpen, setSubmissionsOpen] = useState(false)
+  const [submissionsLoading, setSubmissionsLoading] = useState(false)
+  const [submissionsData, setSubmissionsData] = useState<SubmissionsDetailsResponse | null>(null)
+  const [submissionsTitle, setSubmissionsTitle] = useState('')
+  const [expandedStudent, setExpandedStudent] = useState<string | null>(null)
 
   // Create quiz state
   const [newQuizTitle, setNewQuizTitle] = useState('')
@@ -284,12 +291,19 @@ export default function ActiveSessionPage() {
           }
 
           if (q.type === 'MATCHING') {
+            const left = q.matchingLeft || []
+            const right = q.matchingRight || []
+            const correct_pairs: Record<string, string> = {}
+            for (let i = 0; i < left.length && i < right.length; i++) {
+              correct_pairs[left[i]] = right[i]
+            }
             return {
               ...base,
               answers: [],
               extra_data: {
-                left_column: q.matchingLeft,
-                right_column: q.matchingRight,
+                left_column: left,
+                right_column: right,
+                correct_pairs,
               },
             }
           }
@@ -326,6 +340,22 @@ export default function ActiveSessionPage() {
       setActiveQuizData(null)
     } catch (error) {
       console.error('Failed to end quiz:', error)
+    }
+  }
+
+  const handleViewSubmissions = async (sessionQuizId: string, title: string) => {
+    setSubmissionsTitle(title)
+    setSubmissionsOpen(true)
+    setSubmissionsLoading(true)
+    setSubmissionsData(null)
+    setExpandedStudent(null)
+    try {
+      const data = await quizzesApi.getSubmissionsDetails(sessionQuizId)
+      setSubmissionsData(data)
+    } catch (error) {
+      console.error('Failed to load submissions:', error)
+    } finally {
+      setSubmissionsLoading(false)
     }
   }
 
@@ -459,12 +489,20 @@ export default function ActiveSessionPage() {
                     <p className="text-xs text-emerald-600">Идёт прямо сейчас</p>
                   </div>
                 </div>
-                <button
-                  onClick={handleEndQuiz}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
-                >
-                  <Square className="w-4 h-4" /> Завершить квиз
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleViewSubmissions(activeQuiz.id, activeQuiz.title || 'Квиз')}
+                    className="flex items-center gap-2 px-4 py-2 border border-emerald-300 text-emerald-700 bg-white rounded-lg text-sm font-medium hover:bg-emerald-50 transition-colors"
+                  >
+                    <Eye className="w-4 h-4" /> Ответы
+                  </button>
+                  <button
+                    onClick={handleEndQuiz}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                  >
+                    <Square className="w-4 h-4" /> Завершить квиз
+                  </button>
+                </div>
               </div>
             )}
 
@@ -506,11 +544,19 @@ export default function ActiveSessionPage() {
                       </p>
                     </div>
                   </div>
-                  {q.ended_at ? (
-                    <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-1 rounded">Завершён</span>
-                  ) : (
-                    <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-medium">Активен</span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleViewSubmissions(q.id, q.title || `Квиз #${idx + 1}`)}
+                      className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-2 py-1 rounded hover:bg-zinc-50 transition-colors"
+                    >
+                      <Eye className="w-3 h-3" /> Ответы
+                    </button>
+                    {q.ended_at ? (
+                      <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-1 rounded">Завершён</span>
+                    ) : (
+                      <span className="text-xs text-emerald-600 bg-emerald-50 px-2 py-1 rounded font-medium">Активен</span>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -535,15 +581,21 @@ export default function ActiveSessionPage() {
             {participants.length === 0 ? (
               <p className="text-sm text-zinc-400 text-center py-4">Пока нет участников</p>
             ) : (
-              participants.slice(0, 10).map((p, idx) => (
+              [...participants]
+                .sort((a, b) => (b.total_score || 0) - (a.total_score || 0))
+                .slice(0, 10)
+                .map((p, idx) => (
                 <div key={p.id} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
                     <span className="text-xs font-semibold text-zinc-400 w-4">{idx + 1}</span>
-                    <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600">
+                    <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
                       {getInitials(p.student_name)}
                     </div>
-                    <span className="text-sm font-medium text-zinc-900">{p.student_name}</span>
+                    <span className="text-sm font-medium text-zinc-900 truncate">{p.student_name}</span>
                   </div>
+                  <span className="text-xs font-semibold text-zinc-900 bg-white border border-zinc-200 rounded-full px-2.5 py-1 shrink-0">
+                    {p.total_score ?? 0} б.
+                  </span>
                 </div>
               ))
             )}
@@ -919,6 +971,91 @@ export default function ActiveSessionPage() {
           </Button>
           <Button className="flex-1" onClick={handleQuickPoll}>
             Запустить опрос
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Submissions Modal (Teacher view of student answers) */}
+      <Modal
+        open={submissionsOpen}
+        onClose={() => setSubmissionsOpen(false)}
+        title={`Ответы студентов: ${submissionsTitle}`}
+        width="w-[760px]"
+      >
+        <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+          {submissionsLoading ? (
+            <p className="text-center py-8 text-zinc-500">Загрузка...</p>
+          ) : !submissionsData || submissionsData.submissions.length === 0 ? (
+            <p className="text-center py-8 text-zinc-500">Пока нет отправленных ответов</p>
+          ) : (
+            submissionsData.submissions.map((sub) => {
+              const isExpanded = expandedStudent === sub.id
+              return (
+                <div key={sub.id} className="border border-zinc-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setExpandedStudent(isExpanded ? null : sub.id)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-zinc-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
+                        {getInitials(sub.student_name)}
+                      </div>
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className="text-sm font-medium text-zinc-900 truncate">{sub.student_name}</span>
+                        <span className="text-xs text-zinc-400">{new Date(sub.submitted_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-sm font-semibold text-zinc-900">{sub.score} б.</span>
+                      <ChevronRight className={`w-4 h-4 text-zinc-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                    </div>
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t border-zinc-100 bg-zinc-50 px-4 py-3 flex flex-col gap-3">
+                      {sub.answers.map((a, idx) => (
+                        <div key={a.question_id} className="bg-white border border-zinc-200 rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <p className="text-xs font-medium text-zinc-500">Вопрос {idx + 1} · {a.type}</p>
+                            {a.is_correct === true && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">Верно</span>
+                            )}
+                            {a.is_correct === false && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-red-50 text-red-700 border border-red-200">Неверно</span>
+                            )}
+                            {a.is_correct === null && (
+                              <span className="text-xs px-2 py-0.5 rounded bg-zinc-100 text-zinc-600 border border-zinc-200">Ручная проверка</span>
+                            )}
+                          </div>
+                          <p className="text-sm font-medium text-zinc-900 mb-2">{a.question_text}</p>
+                          {a.answer_texts.length === 0 || (a.answer_texts.length === 1 && !a.answer_texts[0]) ? (
+                            <p className="text-xs text-zinc-400 italic">Нет ответа</p>
+                          ) : (
+                            <ul className="flex flex-col gap-1">
+                              {a.answer_texts.map((txt, i) => (
+                                <li key={i} className="text-sm text-zinc-700 bg-zinc-50 border border-zinc-100 rounded px-2 py-1">{txt || '—'}</li>
+                              ))}
+                            </ul>
+                          )}
+                          {a.type === 'ORDERING' && a.correct_order && a.correct_order.length > 0 && a.is_correct === false && (
+                            <p className="text-xs text-zinc-500 mt-2">Правильный порядок: {a.correct_order.join(' → ')}</p>
+                          )}
+                          {a.type === 'MATCHING' && a.correct_pairs && Object.keys(a.correct_pairs).length > 0 && a.is_correct === false && (
+                            <p className="text-xs text-zinc-500 mt-2">
+                              Правильные пары: {Object.entries(a.correct_pairs).map(([k, v]) => `${k} → ${v}`).join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setSubmissionsOpen(false)}>
+            Закрыть
           </Button>
         </div>
       </Modal>

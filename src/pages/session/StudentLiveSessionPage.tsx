@@ -35,7 +35,8 @@ export default function StudentLiveSessionPage() {
   const [sessionEnded, setSessionEnded] = useState(false)
   const [reactionCounts, setReactionCounts] = useState({ THUMBS_UP: 0, CONFUSED: 0, THINKING: 0, FIRE: 0 })
   const [lastReaction, setLastReaction] = useState<string | null>(null)
-  const [quizSubmitted, setQuizSubmitted] = useState(false)
+  const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(new Set())
+  const [lastScore, setLastScore] = useState<number | null>(null)
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -80,13 +81,24 @@ export default function StudentLiveSessionPage() {
     return () => clearInterval(interval)
   }, [session, sessionId])
 
-  // Poll for active quiz
+  // Poll for active quiz — continues after submission to pick up new quizzes
   useEffect(() => {
-    if (!sessionId || sessionEnded || quiz || quizSubmitted) return
+    if (!sessionId || sessionEnded || quiz) return
     const pollQuiz = async () => {
       try {
         const activeQuiz = await quizzesApi.getActiveQuiz(sessionId)
-        if (activeQuiz && activeQuiz.questions.length > 0) {
+        if (
+          activeQuiz &&
+          activeQuiz.questions.length > 0 &&
+          !submittedQuizIds.has(activeQuiz.session_quiz_id)
+        ) {
+          // Initialize ordering state from questions so drag-and-drop has an initial order
+          const initialOrdering: Record<string, string[]> = {}
+          activeQuiz.questions.forEach((q) => {
+            if (q.type === 'ORDERING') {
+              initialOrdering[q.id] = q.answers.map((a) => a.id)
+            }
+          })
           setQuiz({
             sessionQuizId: activeQuiz.session_quiz_id,
             quizId: activeQuiz.quiz_id,
@@ -95,17 +107,18 @@ export default function StudentLiveSessionPage() {
             currentQuestion: 0,
             selectedAnswers: {},
             textAnswers: {},
-            orderingAnswers: {},
+            orderingAnswers: initialOrdering,
             matchingAnswers: {},
             fileAnswers: {},
           })
+          setQuizResult(null)
         }
       } catch { /* no active quiz */ }
     }
     pollQuiz()
     const interval = setInterval(pollQuiz, 3000)
     return () => clearInterval(interval)
-  }, [sessionId, sessionEnded, quiz, quizSubmitted])
+  }, [sessionId, sessionEnded, quiz, submittedQuizIds])
 
   const sendReaction = async (type: ReactionType) => {
     if (!sessionId || lastReaction === type) return
@@ -209,6 +222,7 @@ export default function StudentLiveSessionPage() {
 
   const submitQuiz = async () => {
     if (!quiz) return
+    const submittedId = quiz.sessionQuizId
     try {
       const answers: Record<string, string[]> = {}
       for (const q of quiz.questions) {
@@ -217,7 +231,12 @@ export default function StudentLiveSessionPage() {
         } else if (q.type === 'FILE') {
           answers[q.id] = [quiz.fileAnswers[q.id]?.file_id || '']
         } else if (q.type === 'ORDERING') {
-          answers[q.id] = quiz.orderingAnswers[q.id] || []
+          // State holds ordered answer ids — convert to texts for scoring
+          const orderedIds = quiz.orderingAnswers[q.id] || q.answers.map((a) => a.id)
+          answers[q.id] = orderedIds.map((aid) => {
+            const a = q.answers.find((x) => x.id === aid)
+            return a ? a.text : aid
+          })
         } else if (q.type === 'MATCHING') {
           const pairs = quiz.matchingAnswers[q.id] || {}
           answers[q.id] = [JSON.stringify(pairs)]
@@ -226,8 +245,9 @@ export default function StudentLiveSessionPage() {
         }
       }
       try {
-        const result = await quizzesApi.submitQuizAnswers(quiz.sessionQuizId, answers)
+        const result = await quizzesApi.submitQuizAnswers(submittedId, answers)
         setQuizResult({ score: result.score, correct: 0, total: quiz.questions.length })
+        setLastScore(result.score)
       } catch (error: any) {
         console.error('Submit failed:', error)
         const errorMsg = error?.message || 'Не удалось отправить ответы'
@@ -243,7 +263,11 @@ export default function StudentLiveSessionPage() {
         setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
       }
       setQuiz(null)
-      setQuizSubmitted(true)
+      setSubmittedQuizIds((prev) => {
+        const next = new Set(prev)
+        next.add(submittedId)
+        return next
+      })
     } catch (error: any) {
       console.error('Submit failed:', error)
       setError('Не удалось отправить ответы.')
@@ -326,6 +350,7 @@ export default function StudentLiveSessionPage() {
             quiz={quiz}
             handleFileUpload={handleFileUpload}
             setMatchingAnswer={setMatchingAnswer}
+            setOrderingAnswer={setOrderingAnswer}
           />
           <div className="flex justify-between mt-8">
             {quiz.currentQuestion > 0 && (
@@ -389,24 +414,22 @@ export default function StudentLiveSessionPage() {
             <p className="text-base font-semibold text-zinc-900">{session?.lecture?.topic || session?.lecture?.name || '—'}</p>
           </div>
 
-          {/* Quiz submitted result */}
-          {quizSubmitted && quizResult && (
+          {/* Quiz submitted result (for the last submitted quiz) */}
+          {quizResult && lastScore !== null && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center">
               <p className="text-sm font-medium text-emerald-800 mb-1">Ответы отправлены!</p>
-              <p className="text-xs text-emerald-600">Баллов: {quizResult.score}</p>
+              <p className="text-xs text-emerald-600">Баллов за последний квиз: {quizResult.score}</p>
             </div>
           )}
 
-          {/* Waiting for quiz (show only if no quiz submitted yet) */}
-          {!quizSubmitted && (
-            <div className="bg-zinc-50 rounded-lg flex flex-col items-center justify-center py-8 gap-2">
-              <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
-                <Clock className="w-5 h-5 text-zinc-400" />
-              </div>
-              <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
-              <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
+          {/* Waiting for next quiz */}
+          <div className="bg-zinc-50 rounded-lg flex flex-col items-center justify-center py-8 gap-2">
+            <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
+              <Clock className="w-5 h-5 text-zinc-400" />
             </div>
-          )}
+            <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
+            <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
+          </div>
 
           {/* Reactions */}
           <div className="flex flex-col gap-4">
@@ -441,15 +464,21 @@ export default function StudentLiveSessionPage() {
           <div className="flex flex-col gap-2">
             {participantsList.length === 0 ? (
               <p className="text-center py-4 text-xs text-zinc-400">Нет участников</p>
-            ) : participantsList.slice(0, 10).map((p, i) => (
+            ) : [...participantsList]
+              .sort((a, b) => (b.total_score || 0) - (a.total_score || 0))
+              .slice(0, 10)
+              .map((p, i) => (
               <div key={p.id} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-4 min-w-0">
                   <span className="text-xs font-semibold text-zinc-400 w-3">{i + 1}</span>
-                  <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600">
+                  <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
                     {getInitials(p.student_name)}
                   </div>
-                  <span className="text-sm font-medium text-zinc-900">{p.student_name}</span>
+                  <span className="text-sm font-medium text-zinc-900 truncate">{p.student_name}</span>
                 </div>
+                <span className="text-xs font-semibold text-zinc-900 bg-white border border-zinc-200 rounded-full px-2.5 py-1 shrink-0">
+                  {p.total_score ?? 0} б.
+                </span>
               </div>
             ))}
           </div>
@@ -469,6 +498,7 @@ function QuizQuestionView({
   quiz,
   handleFileUpload,
   setMatchingAnswer,
+  setOrderingAnswer,
 }: {
   question: ActiveQuizQuestion
   selectedAnswers: string[]
@@ -479,6 +509,7 @@ function QuizQuestionView({
   quiz: ActiveQuiz
   handleFileUpload: (questionId: string, file: File) => void
   setMatchingAnswer: (questionId: string, leftId: string, rightId: string) => void
+  setOrderingAnswer: (questionId: string, orderedIds: string[]) => void
 }) {
   const qType = question.type
 
@@ -627,50 +658,136 @@ function QuizQuestionView({
 
       {/* ORDERING - drag and drop */}
       {qType === 'ORDERING' && (
-        <div className="flex flex-col gap-2.5">
-          <p className="text-xs text-zinc-400 text-center">Перетащите элементы в правильном порядке</p>
-          {question.answers.map((a, idx) => (
-            <div
-              key={a.id}
-              className="bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 flex items-center gap-3 cursor-grab hover:border-zinc-300 transition-colors"
-              draggable
-              onDragStart={(e) => e.dataTransfer.setData('text/plain', a.id)}
-            >
-              <GripVertical className="w-4 h-4 text-zinc-300 shrink-0" />
-              <div className="bg-zinc-900 rounded-full w-7 h-7 flex items-center justify-center shrink-0">
-                <span className="text-xs font-bold text-white">{idx + 1}</span>
-              </div>
-              <span className="text-sm font-medium text-zinc-800">{a.text}</span>
-            </div>
-          ))}
-        </div>
+        <OrderingQuestion
+          question={question}
+          orderedIds={quiz.orderingAnswers[question.id] || question.answers.map((a) => a.id)}
+          onReorder={(ids) => setOrderingAnswer(question.id, ids)}
+        />
       )}
 
-      {/* MATCHING - dropdown matching */}
+      {/* MATCHING - dropdown matching from extra_data.left_column / right_column */}
       {qType === 'MATCHING' && (
-        <div className="flex flex-col gap-3">
-          {question.answers.map((a) => (
-            <div key={a.id} className="flex items-center gap-3">
-              <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-4 py-3">
-                <span className="text-sm font-semibold text-zinc-900">{a.text}</span>
-              </div>
-              <div className="w-4 h-4 flex items-center justify-center">
-                <span className="text-zinc-300">→</span>
-              </div>
-              <select
-                className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-4 py-3 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
-                value={quiz.matchingAnswers[question.id]?.[a.id] || ''}
-                onChange={(e) => setMatchingAnswer(question.id, a.id, e.target.value)}
-              >
-                <option value="">— выберите —</option>
-                {question.answers.map((opt) => (
-                  <option key={opt.id} value={opt.id}>{opt.text}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-        </div>
+        <MatchingQuestion
+          question={question}
+          pairs={quiz.matchingAnswers[question.id] || {}}
+          onSetPair={(leftId, rightId) => setMatchingAnswer(question.id, leftId, rightId)}
+        />
       )}
+    </div>
+  )
+}
+
+function OrderingQuestion({
+  question,
+  orderedIds,
+  onReorder,
+}: {
+  question: ActiveQuizQuestion
+  orderedIds: string[]
+  onReorder: (ids: string[]) => void
+}) {
+  // Build a map id -> text
+  const textById = new Map(question.answers.map((a) => [a.id, a.text]))
+  // Ensure all answer ids are present in order (in case of stale state)
+  const effectiveOrder = orderedIds.length === question.answers.length
+    ? orderedIds
+    : question.answers.map((a) => a.id)
+
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [overIndex, setOverIndex] = useState<number | null>(null)
+
+  const onDragStart = (idx: number) => (e: React.DragEvent) => {
+    setDragIndex(idx)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+  const onDragOver = (idx: number) => (e: React.DragEvent) => {
+    e.preventDefault()
+    setOverIndex(idx)
+  }
+  const onDrop = (idx: number) => (e: React.DragEvent) => {
+    e.preventDefault()
+    if (dragIndex === null || dragIndex === idx) {
+      setDragIndex(null)
+      setOverIndex(null)
+      return
+    }
+    const next = [...effectiveOrder]
+    const [moved] = next.splice(dragIndex, 1)
+    next.splice(idx, 0, moved)
+    onReorder(next)
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+  const onDragEnd = () => {
+    setDragIndex(null)
+    setOverIndex(null)
+  }
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      {effectiveOrder.map((id, idx) => (
+        <div
+          key={id}
+          draggable
+          onDragStart={onDragStart(idx)}
+          onDragOver={onDragOver(idx)}
+          onDrop={onDrop(idx)}
+          onDragEnd={onDragEnd}
+          className={`bg-white border-2 rounded-xl px-4 py-3.5 flex items-center gap-3 cursor-grab active:cursor-grabbing transition-colors ${
+            overIndex === idx && dragIndex !== idx ? 'border-zinc-900' : 'border-zinc-200 hover:border-zinc-300'
+          }`}
+        >
+          <div className="bg-zinc-900 rounded-full w-7 h-7 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-white">{idx + 1}</span>
+          </div>
+          <span className="text-sm font-medium text-zinc-800 flex-1">{textById.get(id) ?? id}</span>
+          <GripVertical className="w-4 h-4 text-zinc-300 shrink-0" />
+        </div>
+      ))}
+      <p className="text-xs text-zinc-400 text-center mt-1">Перетащите элементы в правильном порядке</p>
+    </div>
+  )
+}
+
+function MatchingQuestion({
+  question,
+  pairs,
+  onSetPair,
+}: {
+  question: ActiveQuizQuestion
+  pairs: Record<string, string>
+  onSetPair: (leftId: string, rightId: string) => void
+}) {
+  const extra = (question.extra_data || {}) as { left_column?: string[]; right_column?: string[] }
+  const left = extra.left_column || []
+  const right = extra.right_column || []
+
+  // If extra_data is empty but answers have text (legacy fallback), split them
+  const leftItems = left.length > 0 ? left : question.answers.map((a) => a.text)
+  const rightItems = right.length > 0 ? right : question.answers.map((a) => a.text)
+
+  return (
+    <div className="flex flex-col gap-3">
+      {leftItems.map((leftText) => (
+        <div key={leftText} className="flex items-center gap-3">
+          <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-4 py-3">
+            <span className="text-sm font-semibold text-zinc-900">{leftText}</span>
+          </div>
+          <div className="w-4 h-4 flex items-center justify-center">
+            <span className="text-zinc-300">→</span>
+          </div>
+          <select
+            className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-4 py-3 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
+            value={pairs[leftText] || ''}
+            onChange={(e) => onSetPair(leftText, e.target.value)}
+          >
+            <option value="">— выберите —</option>
+            {rightItems.map((rightText) => (
+              <option key={rightText} value={rightText}>{rightText}</option>
+            ))}
+          </select>
+        </div>
+      ))}
     </div>
   )
 }

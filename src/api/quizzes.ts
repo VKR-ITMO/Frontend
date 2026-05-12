@@ -53,6 +53,38 @@ export const quizzesApi = {
   getQuizSessionQuizzes: (quizId: string): Promise<SessionQuizWithStats[]> => {
     return api.get<SessionQuizWithStats[]>(`/quizzes/${quizId}/session-quizzes`)
   },
+
+  getSubmissionsDetails: (sessionQuizId: string): Promise<SubmissionsDetailsResponse> => {
+    return api.get<SubmissionsDetailsResponse>(`/session-quizzes/${sessionQuizId}/submissions`)
+  },
+}
+
+export interface SubmissionAnswerView {
+  question_id: string
+  question_text: string
+  type: string
+  answer_texts: string[]
+  correct_order?: string[]
+  pairs?: Record<string, string>
+  correct_pairs?: Record<string, string>
+  is_correct: boolean | null
+  raw: unknown
+}
+
+export interface StudentSubmission {
+  id: string
+  student_id: string
+  student_name: string
+  student_email: string
+  score: number
+  submitted_at: string
+  answers: SubmissionAnswerView[]
+}
+
+export interface SubmissionsDetailsResponse {
+  session_quiz_id: string
+  questions: ActiveQuizQuestion[]
+  submissions: StudentSubmission[]
 }
 
 export interface SessionQuizWithStats {
