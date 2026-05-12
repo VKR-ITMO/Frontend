@@ -659,25 +659,32 @@ export default function ActiveSessionPage() {
               </div>
               {(q.type === 'SINGLE' || q.type === 'MULTIPLE') && (
                 <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-zinc-900 tracking-wide">Варианты ответа</label>
                   {q.answers.map((a, aIdx) => (
                     <div key={aIdx} className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateAnswer(qIdx, aIdx, 'is_correct', !a.is_correct)}
-                        className={`w-5 h-5 shrink-0 border-2 flex items-center justify-center transition-colors ${
-                          q.type === 'SINGLE' ? 'rounded-full' : 'rounded'
-                        } ${a.is_correct ? 'border-emerald-500 bg-emerald-500' : 'border-zinc-300'}`}
-                      >
-                        {a.is_correct && <div className="w-2 h-2 bg-white rounded-full" />}
-                      </button>
                       <input
-                        className="flex-1 px-3 py-1.5 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                        type={q.type === 'SINGLE' ? 'radio' : 'checkbox'}
+                        name={`correct_${qIdx}`}
+                        checked={a.is_correct}
+                        onChange={() => {
+                          const updated = [...newQuizQuestions]
+                          if (q.type === 'SINGLE') {
+                            updated[qIdx].answers.forEach((ans, i) => ans.is_correct = i === aIdx)
+                          } else {
+                            updated[qIdx].answers[aIdx].is_correct = !updated[qIdx].answers[aIdx].is_correct
+                          }
+                          setNewQuizQuestions(updated)
+                        }}
+                        className="accent-zinc-900"
+                      />
+                      <input
+                        className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
                         placeholder={`Вариант ${aIdx + 1}`}
                         value={a.text}
                         onChange={(e) => updateAnswer(qIdx, aIdx, 'text', e.target.value)}
                       />
                       {q.answers.length > 2 && (
-                        <button onClick={() => removeAnswer(qIdx, aIdx)} className="text-zinc-300 hover:text-red-500">
+                        <button onClick={() => removeAnswer(qIdx, aIdx)} className="text-zinc-400 hover:text-zinc-600">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -685,7 +692,7 @@ export default function ActiveSessionPage() {
                   ))}
                   <button
                     onClick={() => addAnswer(qIdx)}
-                    className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-700 py-1"
+                    className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 w-fit"
                   >
                     <Plus className="w-3 h-3" /> Добавить вариант
                   </button>
