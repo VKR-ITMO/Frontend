@@ -45,7 +45,7 @@ export default function TeacherCoursesPage() {
   const loadCourses = async () => {
     try {
       setLoading(true)
-      const data = await coursesApi.getCourses()
+      const data = await coursesApi.getCourses('my')
       setCourses(data)
     } catch (err) {
       setError('Ошибка загрузки курсов')
@@ -129,6 +129,7 @@ export default function TeacherCoursesPage() {
               studentCount=""
               linkTo={`/teacher/courses/${course.id}`}
               buttonLabel="Открыть"
+              imageUrl={course.image_url ? `${import.meta.env.VITE_API_URL.replace('/api/v1', '')}${course.image_url}` : undefined}
             />
           ))}
         </div>
@@ -173,7 +174,7 @@ export default function TeacherCoursesPage() {
           />
           <Input 
             label="Семестр" 
-            placeholder="2024-2025"
+            type="date"
             value={newCourse.semester}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCourse({...newCourse, semester: e.target.value})}
           />

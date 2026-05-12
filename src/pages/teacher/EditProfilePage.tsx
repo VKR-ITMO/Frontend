@@ -1,13 +1,16 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, GraduationCap } from 'lucide-react'
+import { ArrowLeft, GraduationCap, Upload } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { useAuth } from '../../contexts/AuthContext'
+import api from '../../api/client'
+import type { User } from '../../api/types'
 
 export default function TeacherEditProfilePage() {
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
   const navigate = useNavigate()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   
   const nameParts = user?.full_name?.split(' ') || ['', '']
   const [firstName, setFirstName] = useState(nameParts[0] || '')
@@ -15,10 +18,79 @@ export default function TeacherEditProfilePage() {
   const [email, setEmail] = useState(user?.email || '')
   const [position, setPosition] = useState('')
   const [bio, setBio] = useState('')
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null)
+  const [loading, setLoading] = useState(false)
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Файл слишком большой (максимум 5MB)')
+        return
+      }
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleAvatarUpload = async () => {
+    const file = fileInputRef.current?.files?.[0]
+    if (!file || !user) return
+
+    try {
+      setLoading(true)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/${user.id}/avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) throw new Error('Upload failed')
+
+      const updatedUser = await response.json()
+      setUser(updatedUser)
+    } catch (error) {
+      console.error('Avatar upload failed:', error)
+      alert('Не удалось загрузить аватар')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSave = async () => {
-    // Profile update not implemented yet - just navigate back
-    navigate('/teacher/profile')
+    try {
+      setLoading(true)
+      // Upload avatar if changed
+      if (fileInputRef.current?.files?.[0]) {
+        await handleAvatarUpload()
+      }
+
+      // Update user info
+      if (user) {
+        await api.patch(`/users/${user.id}`, {
+          full_name: `${firstName} ${lastName}`.trim(),
+        })
+        
+        // Refresh user data
+        const updatedUser = await api.get<User>(`/users/${user.id}`)
+        setUser(updatedUser)
+      }
+      
+      navigate('/teacher/profile')
+    } catch (error) {
+      console.error('Profile update failed:', error)
+      alert('Не удалось сохранить профиль')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -33,16 +105,27 @@ export default function TeacherEditProfilePage() {
       <div className="flex-1 flex items-center justify-center p-10">
         <div className="w-[448px] flex flex-col gap-8">
           <div className="flex flex-col items-center gap-4">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt={user.full_name} className="w-[186px] h-[186px] rounded-full object-cover" />
+            {avatarPreview ? (
+              <div className="relative">
+                <img src={avatarPreview} alt={user?.full_name || 'Avatar'} className="w-[186px] h-[186px] rounded-full object-cover" />
+                <button
+                  onClick={() => { setAvatarPreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                  className="absolute top-0 right-0 bg-white rounded-full p-2 shadow-md hover:bg-zinc-100"
+                >
+                  ✕
+                </button>
+              </div>
             ) : (
               <div className="w-[186px] h-[186px] rounded-full bg-zinc-200 flex items-center justify-center">
                 <GraduationCap className="w-16 h-16 text-zinc-400" />
               </div>
             )}
+            <input type="file" ref={fileInputRef} accept="image/*" onChange={handleImageSelect} className="hidden" />
             <div className="flex flex-col items-center gap-2 w-full">
-              <Button variant="outline" fullWidth>Выбрать файл</Button>
-              <span className="text-xs text-zinc-400">Максимум 2MB</span>
+              <Button variant="outline" fullWidth onClick={() => fileInputRef.current?.click()}>
+                {avatarPreview ? 'Изменить фото' : 'Выбрать файл'}
+              </Button>
+              <span className="text-xs text-zinc-400">Максимум 5MB</span>
             </div>
           </div>
 

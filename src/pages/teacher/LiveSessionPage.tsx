@@ -136,16 +136,6 @@ export default function LiveSessionPage() {
         </div>
         {startError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{startError}</p>}
 
-        <div className="bg-white border border-zinc-100 rounded-xl p-4 flex items-center justify-between w-full">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center">
-              <Plus className="w-5 h-5 text-zinc-500" />
-            </div>
-            <span className="text-sm font-semibold text-zinc-900">Быстрая лекция (без курса)</span>
-          </div>
-          <Button size="sm" onClick={() => setFreeLectureModal(true)}>Начать</Button>
-        </div>
-
         <div className="h-px bg-zinc-100 w-full" />
 
         {courses.length === 0 ? (

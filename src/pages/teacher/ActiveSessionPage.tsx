@@ -580,14 +580,20 @@ export default function ActiveSessionPage() {
                   <option value="MULTIPLE">Несколько ответов</option>
                   <option value="BOOLEAN">Верно/Неверно</option>
                   <option value="TEXT">Текстовый ответ</option>
+                  <option value="FILE">Загрузка файла</option>
+                  <option value="ORDERING">Упорядочивание</option>
+                  <option value="MATCHING">Соответствие</option>
                 </select>
-                <input
-                  type="number"
-                  className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
-                  placeholder="Сек"
-                  value={q.timer}
-                  onChange={(e) => updateQuestion(qIdx, 'timer', parseInt(e.target.value) || 30)}
-                />
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-zinc-600">Таймер (сек):</label>
+                  <input
+                    type="number"
+                    className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                    placeholder="30"
+                    value={q.timer}
+                    onChange={(e) => updateQuestion(qIdx, 'timer', parseInt(e.target.value) || 30)}
+                  />
+                </div>
               </div>
               {(q.type === 'SINGLE' || q.type === 'MULTIPLE') && (
                 <div className="flex flex-col gap-2">

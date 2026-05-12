@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import CourseCard from '../../components/ui/CourseCard'
 import { coursesApi } from '../../api/courses'
 import type { Course } from '../../api/types'
@@ -9,11 +9,33 @@ export default function StudentCoursesPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const filters = ['Все', 'Активные', 'Завершенные']
 
   useEffect(() => {
     loadCourses()
+    
+    // Restore scroll position on mount
+    const savedScroll = localStorage.getItem('coursesPageScroll')
+    if (savedScroll && containerRef.current) {
+      containerRef.current.scrollTop = parseInt(savedScroll)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Save scroll position on unmount
+    const handleScroll = () => {
+      if (containerRef.current) {
+        localStorage.setItem('coursesPageScroll', containerRef.current.scrollTop.toString())
+      }
+    }
+
+    const container = containerRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+      return () => container.removeEventListener('scroll', handleScroll)
+    }
   }, [])
 
   const loadCourses = async () => {
@@ -38,7 +60,7 @@ export default function StudentCoursesPage() {
   })
 
   return (
-    <div className="flex flex-col gap-8 p-8">
+    <div ref={containerRef} className="flex flex-col gap-8 p-8 overflow-auto" style={{ maxHeight: 'calc(100vh - 64px)' }}>
       <div>
         <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Мои курсы</h1>
         <p className="text-base text-zinc-500 mt-1">Все курсы, на которые вы записаны</p>

@@ -228,6 +228,35 @@ export default function TeacherCourseDetailPage() {
         setImagePreview(reader.result as string)
       }
       reader.readAsDataURL(file)
+      // Auto-upload when file is selected
+      handleCourseImageUpload()
+    }
+  }
+
+  const handleCourseImageUpload = async () => {
+    if (!courseImage || !courseId) return
+
+    try {
+      const formData = new FormData()
+      formData.append('file', courseImage)
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/courses/${courseId}/image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) throw new Error('Upload failed')
+
+      // Reload course data to get the new image URL
+      loadCourseData()
+      setCourseImage(null)
+      setImagePreview(null)
+    } catch (error) {
+      console.error('Course image upload failed:', error)
+      alert('Не удалось загрузить изображение курса')
     }
   }
 
