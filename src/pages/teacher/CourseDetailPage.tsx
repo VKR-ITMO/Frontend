@@ -39,6 +39,8 @@ export default function TeacherCourseDetailPage() {
   const [materialUrl, setMaterialUrl] = useState('')
   const [materialDesc, setMaterialDesc] = useState('')
   const [loading, setLoading] = useState(true)
+  const [courseImage, setCourseImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   
   const [tab, setTab] = useState('lectures')
   const [filter, setFilter] = useState('Все')
@@ -214,6 +216,18 @@ export default function TeacherCourseDetailPage() {
       loadCourseData()
     } catch (error) {
       console.error('Failed to delete quiz:', error)
+    }
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setCourseImage(file)
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
     }
   }
 
@@ -413,7 +427,31 @@ export default function TeacherCourseDetailPage() {
         {tab === 'settings' && (
           <div className="flex flex-col gap-6 p-8">
             <h2 className="text-lg font-semibold text-gray-900">Настройки курса</h2>
-            <div className="max-w-lg flex flex-col gap-4">
+            <div className="max-w-lg flex flex-col gap-6">
+              <div className="flex flex-col items-center gap-4">
+                {imagePreview || course?.image_url ? (
+                  <img src={imagePreview || (course?.image_url || undefined)} alt="Course" className="w-[186px] h-[186px] rounded-xl object-cover" />
+                ) : (
+                  <div className="w-[186px] h-[186px] rounded-xl bg-zinc-200 flex items-center justify-center">
+                    <span className="text-zinc-400 text-sm">Нет изображения</span>
+                  </div>
+                )}
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                    id="course-image-upload"
+                  />
+                  <label htmlFor="course-image-upload">
+                    <Button variant="outline" fullWidth className="cursor-pointer">
+                      {course?.image_url || imagePreview ? 'Изменить изображение' : 'Добавить изображение'}
+                    </Button>
+                  </label>
+                  <span className="text-xs text-zinc-400">JPG, PNG. Максимум 2MB</span>
+                </div>
+              </div>
               <Input 
                 label="Название курса" 
                 value={courseSettings.name}
@@ -428,10 +466,6 @@ export default function TeacherCourseDetailPage() {
                 />
               </div>
               <Button onClick={handleSaveCourseSettings}>Сохранить</Button>
-            </div>
-            <div className="border-t border-zinc-200 pt-6 mt-4">
-              <h3 className="text-base font-semibold text-red-600 mb-4">Опасная зона</h3>
-              <Button variant="danger" onClick={() => setDeleteCourseOpen(true)}>Удалить курс</Button>
             </div>
           </div>
         )}
