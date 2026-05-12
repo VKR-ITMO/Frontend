@@ -477,25 +477,22 @@ function QuizQuestionView({
         />
       )}
 
-      {/* FILE upload */}
+      {/* FILE upload - requires backend implementation */}
       {qType === 'FILE' && (
-        <div className="border-2 border-dashed border-zinc-200 rounded-xl p-8 flex flex-col items-center justify-center gap-3">
-          <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center">
-            <svg className="w-6 h-6 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
-          </div>
-          <p className="text-sm text-zinc-600 font-medium">Нажмите для загрузки файла</p>
-          <p className="text-xs text-zinc-400">PDF, PNG, JPG до 10 МБ</p>
-          <input type="file" className="hidden" />
+        <div className="border-2 border-dashed border-zinc-200 rounded-xl p-8 flex flex-col items-center justify-center gap-3 bg-zinc-50">
+          <p className="text-sm text-zinc-600 font-medium">Загрузка файлов не реализована</p>
+          <p className="text-xs text-zinc-400">Требуется backend endpoint для загрузки файлов</p>
         </div>
       )}
 
-      {/* ORDERING */}
+      {/* ORDERING - basic implementation */}
       {qType === 'ORDERING' && (
         <div className="flex flex-col gap-2.5">
+          <p className="text-xs text-zinc-400">Перетащите элементы для упорядочивания (не реализовано)</p>
           {question.answers.map((a, idx) => (
             <div
               key={a.id}
-              className="bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 flex items-center gap-3 cursor-grab"
+              className="bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 flex items-center gap-3 cursor-grab opacity-50"
             >
               <GripVertical className="w-4 h-4 text-zinc-300 shrink-0" />
               <span className="text-xs font-semibold text-zinc-400 w-4">{idx + 1}</span>
@@ -505,16 +502,17 @@ function QuizQuestionView({
         </div>
       )}
 
-      {/* MATCHING */}
+      {/* MATCHING - basic implementation */}
       {qType === 'MATCHING' && (
         <div className="flex flex-col gap-2.5">
+          <p className="text-xs text-zinc-400">Сопоставление элементов (не реализовано)</p>
           {question.answers.map((a) => (
-            <div key={a.id} className="flex items-center gap-4">
+            <div key={a.id} className="flex items-center gap-4 opacity-50">
               <div className="flex-1 bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5">
                 <span className="text-sm font-medium text-zinc-800">{a.text}</span>
               </div>
               <span className="text-zinc-300">↔</span>
-              <select className="flex-1 bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 text-sm text-zinc-800 focus:outline-none">
+              <select className="flex-1 bg-white border-2 border-zinc-200 rounded-xl px-4 py-3.5 text-sm text-zinc-800 focus:outline-none" disabled>
                 <option value="">Выберите...</option>
                 {question.answers.map((opt) => (
                   <option key={opt.id} value={opt.id}>{opt.text}</option>
