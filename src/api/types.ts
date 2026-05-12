@@ -24,6 +24,7 @@ export interface StudentStats {
   total_lectures_attended: number
   total_quizzes_taken: number
   average_quiz_score: number
+  total_achievements: number
 }
 
 export type CourseStatus = 'ACTIVE' | 'ARCHIVED'
@@ -217,13 +218,13 @@ export interface QuizResult {
 }
 
 export interface LeaderboardEntry {
-  rank: number
   student_id: string
   student_name: string
   score: number
+  submitted_at: string
 }
 
-export type AnnouncementType = 'INFO' | 'WARNING' | 'URGENT'
+export type AnnouncementType = 'INFO' | 'WARNING' | 'SUCCESS'
 
 export interface Announcement {
   id: string
