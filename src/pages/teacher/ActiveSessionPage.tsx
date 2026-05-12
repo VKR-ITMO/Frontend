@@ -692,9 +692,38 @@ export default function ActiveSessionPage() {
                 </div>
               )}
               {q.type === 'BOOLEAN' && (
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-white border border-emerald-200 rounded-lg py-2 text-center text-sm text-emerald-600 font-medium">Верно</div>
-                  <div className="flex-1 bg-white border border-red-200 rounded-lg py-2 text-center text-sm text-red-600 font-medium">Неверно</div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-zinc-900 tracking-wide">Правильный ответ</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`boolean_correct_${qIdx}`}
+                        checked={q.answers[0]?.is_correct === true}
+                        onChange={() => {
+                          const updated = [...newQuizQuestions]
+                          updated[qIdx].answers = [{ text: 'Верно', is_correct: true }, { text: 'Неверно', is_correct: false }]
+                          setNewQuizQuestions(updated)
+                        }}
+                        className="accent-zinc-900"
+                      />
+                      <span className="text-sm text-zinc-700">Верно</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name={`boolean_correct_${qIdx}`}
+                        checked={q.answers[1]?.is_correct === true}
+                        onChange={() => {
+                          const updated = [...newQuizQuestions]
+                          updated[qIdx].answers = [{ text: 'Верно', is_correct: false }, { text: 'Неверно', is_correct: true }]
+                          setNewQuizQuestions(updated)
+                        }}
+                        className="accent-zinc-900"
+                      />
+                      <span className="text-sm text-zinc-700">Неверно</span>
+                    </label>
+                  </div>
                 </div>
               )}
               {q.type === 'MATCHING' && (
