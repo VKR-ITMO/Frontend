@@ -10,11 +10,15 @@ import { quizzesApi, type ActiveQuizData } from '../../api/quizzes'
 import type { Session, SessionParticipant, ReactionStats, Quiz, SessionQuiz } from '../../api/types'
 
 interface NewQuestion {
+  id: string
   text: string
   type: string
   timer: number
   points: number
   answers: { text: string; is_correct: boolean }[]
+  orderingItems?: string[]
+  matchingLeft?: string[]
+  matchingRight?: string[]
 }
 
 export default function ActiveSessionPage() {
@@ -43,8 +47,18 @@ export default function ActiveSessionPage() {
   // Create quiz state
   const [newQuizTitle, setNewQuizTitle] = useState('')
   const [newQuizQuestions, setNewQuizQuestions] = useState<NewQuestion[]>([
-    { text: '', type: 'SINGLE', timer: 30, points: 1, answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }] }
+    { id: Date.now().toString(), text: '', type: 'SINGLE', timer: 30, points: 1, answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }], orderingItems: [], matchingLeft: [], matchingRight: [] }
   ])
+
+  const [formLeftCol, setFormLeftCol] = useState(['', ''])
+  const [formRightCol, setFormRightCol] = useState(['', ''])
+  const [formOrderItems, setFormOrderItems] = useState(['', '', ''])
+
+  const [selectedType, setSelectedType] = useState('SINGLE')
+  const [formText, setFormText] = useState('')
+  const [formPoints, setFormPoints] = useState('10')
+  const [formOptions, setFormOptions] = useState(['', '', '', ''])
+  const [formCorrect, setFormCorrect] = useState([0])
 
   // Quick poll state
   const [pollQuestion, setPollQuestion] = useState('')
@@ -178,10 +192,29 @@ export default function ActiveSessionPage() {
 
   // --- Create Quiz with questions ---
   const addQuestion = () => {
-    setNewQuizQuestions([...newQuizQuestions, {
-      text: '', type: 'SINGLE', timer: 30, points: 1,
-      answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }]
-    }])
+    const newQuestion: NewQuestion = {
+      id: Date.now().toString(),
+      type: selectedType,
+      text: formText,
+      timer: 30,
+      points: parseInt(formPoints) || 10,
+      answers: (selectedType === 'SINGLE' || selectedType === 'MULTIPLE')
+        ? formOptions.map((opt, i) => ({ text: opt, is_correct: formCorrect.includes(i) }))
+        : selectedType === 'BOOLEAN'
+          ? [{ text: 'Верно', is_correct: formCorrect[0] === 0 }, { text: 'Неверно', is_correct: formCorrect[0] === 1 }]
+          : [],
+      orderingItems: selectedType === 'ORDERING' ? formOrderItems.filter(o => o.trim()) : undefined,
+      matchingLeft: selectedType === 'MATCHING' ? formLeftCol.filter(o => o.trim()) : undefined,
+      matchingRight: selectedType === 'MATCHING' ? formRightCol.filter(o => o.trim()) : undefined,
+    }
+    setNewQuizQuestions([...newQuizQuestions, newQuestion])
+    setFormText('')
+    setFormPoints('10')
+    setFormOptions(['', '', '', ''])
+    setFormCorrect([0])
+    setFormLeftCol(['', ''])
+    setFormRightCol(['', ''])
+    setFormOrderItems(['', '', ''])
   }
 
   const removeQuestion = (idx: number) => {
@@ -226,20 +259,49 @@ export default function ActiveSessionPage() {
       const quiz = await quizzesApi.createQuiz({ title: newQuizTitle })
       await quizzesApi.updateQuiz(quiz.id, {
         title: newQuizTitle,
-        questions: newQuizQuestions.map((q, idx) => ({
-          text: q.text,
-          type: q.type,
-          timer: q.timer,
-          points: q.points,
-          order_index: idx,
-          answers: q.answers,
-        })),
+        questions: newQuizQuestions.map((q, idx) => {
+          const base = {
+            text: q.text,
+            type: q.type,
+            timer: q.timer,
+            points: q.points,
+            order_index: idx,
+          }
+
+          if (q.type === 'SINGLE' || q.type === 'MULTIPLE' || q.type === 'BOOLEAN') {
+            return {
+              ...base,
+              answers: q.answers,
+            }
+          }
+
+          if (q.type === 'ORDERING') {
+            return {
+              ...base,
+              answers: (q.orderingItems || []).map((item, i) => ({ text: item, is_correct: i === 0 })),
+              extra_data: { correct_order: q.orderingItems },
+            }
+          }
+
+          if (q.type === 'MATCHING') {
+            return {
+              ...base,
+              answers: [],
+              extra_data: {
+                left_column: q.matchingLeft,
+                right_column: q.matchingRight,
+              },
+            }
+          }
+
+          return { ...base, answers: [] }
+        }),
       })
       const sessionQuiz = await quizzesApi.launchQuiz(session.id, quiz.id)
       setLaunchedQuizzes(prev => [...prev, { ...sessionQuiz, title: newQuizTitle }])
       setCreateQuizOpen(false)
       setNewQuizTitle('')
-      setNewQuizQuestions([{ text: '', type: 'SINGLE', timer: 30, points: 1, answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }] }])
+      setNewQuizQuestions([{ id: Date.now().toString(), text: '', type: 'SINGLE', timer: 30, points: 1, answers: [{ text: '', is_correct: true }, { text: '', is_correct: false }], orderingItems: [], matchingLeft: [], matchingRight: [] }])
     } catch (error) {
       console.error('Failed to create quiz:', error)
     }
@@ -633,6 +695,80 @@ export default function ActiveSessionPage() {
                 <div className="flex gap-2">
                   <div className="flex-1 bg-white border border-emerald-200 rounded-lg py-2 text-center text-sm text-emerald-600 font-medium">Верно</div>
                   <div className="flex-1 bg-white border border-red-200 rounded-lg py-2 text-center text-sm text-red-600 font-medium">Неверно</div>
+                </div>
+              )}
+              {q.type === 'MATCHING' && (
+                <div className="flex gap-4">
+                  <div className="flex-1 flex flex-col gap-2">
+                    <label className="text-xs font-medium text-zinc-900">Левый столбец</label>
+                    {formLeftCol.map((v, i) => (
+                      <input
+                        key={i}
+                        className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                        placeholder={`Элемент ${i + 1}`}
+                        value={v}
+                        onChange={(e) => {
+                          const n = [...formLeftCol]
+                          n[i] = e.target.value
+                          setFormLeftCol(n)
+                        }}
+                      />
+                    ))}
+                    <button
+                      onClick={() => setFormLeftCol([...formLeftCol, ''])}
+                      className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 w-fit"
+                    >
+                      <Plus className="w-3 h-3" /> Добавить
+                    </button>
+                  </div>
+                  <div className="flex-1 flex flex-col gap-2">
+                    <label className="text-xs font-medium text-zinc-900">Правый столбец</label>
+                    {formRightCol.map((v, i) => (
+                      <input
+                        key={i}
+                        className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                        placeholder={`Элемент ${i + 1}`}
+                        value={v}
+                        onChange={(e) => {
+                          const n = [...formRightCol]
+                          n[i] = e.target.value
+                          setFormRightCol(n)
+                        }}
+                      />
+                    ))}
+                    <button
+                      onClick={() => setFormRightCol([...formRightCol, ''])}
+                      className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 w-fit"
+                    >
+                      <Plus className="w-3 h-3" /> Добавить
+                    </button>
+                  </div>
+                </div>
+              )}
+              {q.type === 'ORDERING' && (
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-medium text-zinc-900">Элементы (в правильном порядке)</label>
+                  {formOrderItems.map((v, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-400 w-4">{i + 1}</span>
+                      <input
+                        className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                        placeholder={`Элемент ${i + 1}`}
+                        value={v}
+                        onChange={(e) => {
+                          const n = [...formOrderItems]
+                          n[i] = e.target.value
+                          setFormOrderItems(n)
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => setFormOrderItems([...formOrderItems, ''])}
+                    className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 w-fit"
+                  >
+                    <Plus className="w-3 h-3" /> Добавить
+                  </button>
                 </div>
               )}
             </div>
