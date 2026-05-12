@@ -16,7 +16,7 @@ export default function StudentEditProfilePage() {
   const [email, setEmail] = useState(user?.email || '')
 
   const handleSave = async () => {
-    // TODO: Implement profile update API call
+    // Profile update not implemented yet - just navigate back
     navigate('/student/profile')
   }
 

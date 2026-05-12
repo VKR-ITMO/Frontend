@@ -17,7 +17,7 @@ export default function TeacherEditProfilePage() {
   const [bio, setBio] = useState('')
 
   const handleSave = async () => {
-    // TODO: Implement profile update API call
+    // Profile update not implemented yet - just navigate back
     navigate('/teacher/profile')
   }
 
