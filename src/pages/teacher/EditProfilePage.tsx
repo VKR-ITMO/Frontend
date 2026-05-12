@@ -16,8 +16,6 @@ export default function TeacherEditProfilePage() {
   const [firstName, setFirstName] = useState(nameParts[0] || '')
   const [lastName, setLastName] = useState(nameParts.slice(1).join(' ') || '')
   const [email, setEmail] = useState(user?.email || '')
-  const [position, setPosition] = useState('')
-  const [bio, setBio] = useState('')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null)
   const [loading, setLoading] = useState(false)
 
@@ -141,24 +139,11 @@ export default function TeacherEditProfilePage() {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)}
             />
             <Input 
-              label="Должность" 
-              value={position}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPosition(e.target.value)}
-            />
-            <Input 
               label="Почта" 
               type="email" 
               value={email}
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
             />
-            <div className="flex flex-col gap-2">
-              <label className="text-xs font-medium text-zinc-900 tracking-wide">О себе</label>
-              <textarea 
-                className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10" 
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-              />
-            </div>
           </div>
 
           <div className="flex gap-8">

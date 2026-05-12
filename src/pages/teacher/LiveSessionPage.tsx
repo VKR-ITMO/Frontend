@@ -135,9 +135,22 @@ export default function LiveSessionPage() {
       <div className="flex flex-col items-center gap-10 w-full max-w-3xl px-8">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-bold text-zinc-900">Нет активной сессии</h1>
-          <p className="text-sm text-zinc-500">Выберите лекцию из одного из ваших курсов, чтобы начать прямой эфир со студентами</p>
+          <p className="text-sm text-zinc-500">Выберите лекцию из одного из ваших курсов или начните быструю лекцию без привязки к курсу</p>
         </div>
         {startError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{startError}</p>}
+
+        <div className="w-full bg-white border border-zinc-200 rounded-xl p-5 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center">
+              <Plus className="w-5 h-5 text-zinc-600" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-zinc-900">Быстрая лекция</span>
+              <span className="text-xs text-zinc-500">Начать лекцию без привязки к курсу</span>
+            </div>
+          </div>
+          <Button onClick={() => { setStartError(''); setFreeLectureModal(true) }}>Создать</Button>
+        </div>
 
         <div className="h-px bg-zinc-100 w-full" />
 
