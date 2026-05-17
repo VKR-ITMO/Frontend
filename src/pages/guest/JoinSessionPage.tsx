@@ -1,15 +1,23 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { GraduationCap, ArrowLeft } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 
 export default function JoinSessionPage() {
-  const [accessCode, setAccessCode] = useState('')
+  const [searchParams] = useSearchParams()
+  const [accessCode, setAccessCode] = useState(searchParams.get('code') || '')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const code = searchParams.get('code')
+    if (code) {
+      setAccessCode(code.toUpperCase())
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

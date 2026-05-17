@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Flame, HandMetal } from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
@@ -696,8 +697,14 @@ export default function ActiveSessionPage() {
       {/* QR Modal */}
       <Modal open={qrModalOpen} onClose={() => setQrModalOpen(false)} title="Код доступа">
         <div className="flex flex-col items-center gap-6">
-          <div className="w-48 h-48 bg-zinc-100 rounded-lg flex items-center justify-center">
-            <QrCode className="w-32 h-32 text-zinc-400" />
+          <div className="p-4 bg-white border border-zinc-200 rounded-xl shadow-sm">
+            <QRCodeSVG
+              value={`${window.location.origin}/join?code=${session.access_code}`}
+              size={192}
+              bgColor="#ffffff"
+              fgColor="#18181b"
+              level="M"
+            />
           </div>
           <div className="text-center">
             <p className="text-sm text-zinc-500 mb-2">Код доступа:</p>
