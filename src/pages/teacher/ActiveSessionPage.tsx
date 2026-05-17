@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Flame, HandMetal } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import Input from '../../components/ui/Input'
@@ -479,12 +479,12 @@ export default function ActiveSessionPage() {
   }
 
   const reactionsList = [
-    { key: 'THUMBS_UP', name: 'Понятно', emoji: '👍', count: reactions.THUMBS_UP },
-    { key: 'CONFUSED', name: 'Непонятно', emoji: '😕', count: reactions.CONFUSED },
-    { key: 'THINKING', name: 'Интересно', emoji: '💡', count: reactions.THINKING },
-    { key: 'HEART', name: 'Нравится', emoji: '❤️', count: reactions.HEART },
-    { key: 'FIRE', name: 'Огонь', emoji: '🔥', count: reactions.FIRE },
-    { key: 'CLAP', name: 'Круто', emoji: '👏', count: reactions.CLAP },
+    { key: 'THUMBS_UP', name: 'Понятно', icon: <ThumbsUp className="w-5 h-5" />, count: reactions.THUMBS_UP },
+    { key: 'CONFUSED', name: 'Непонятно', icon: <HelpCircle className="w-5 h-5" />, count: reactions.CONFUSED },
+    { key: 'THINKING', name: 'Интересно', icon: <Lightbulb className="w-5 h-5" />, count: reactions.THINKING },
+    { key: 'HEART', name: 'Нравится', icon: <Heart className="w-5 h-5" />, count: reactions.HEART },
+    { key: 'FIRE', name: 'Огонь', icon: <Flame className="w-5 h-5" />, count: reactions.FIRE },
+    { key: 'CLAP', name: 'Круто', icon: <HandMetal className="w-5 h-5" />, count: reactions.CLAP },
   ]
 
   const activeQuiz = launchedQuizzes.find(q => !q.ended_at)
@@ -680,8 +680,8 @@ export default function ActiveSessionPage() {
           <div className="grid grid-cols-2 gap-3">
             {reactionsList.map((r) => (
               <div key={r.key} className="bg-white border border-zinc-200 rounded-lg px-3 py-3 flex items-center gap-3">
-                <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center text-lg">
-                  {r.emoji}
+                <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center text-zinc-600">
+                  {r.icon}
                 </div>
                 <div className="flex flex-col">
                   <span className="text-xs text-zinc-500">{r.name}</span>
