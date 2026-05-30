@@ -120,6 +120,14 @@ export interface SessionWithLecture extends Session {
   lecture: Lecture
 }
 
+export interface GuestJoinResponse {
+  access_token: string
+  token_type: string
+  student_id: string
+  student_name: string
+  session: SessionWithLecture
+}
+
 export interface SessionParticipant {
   id: string
   session_id: string

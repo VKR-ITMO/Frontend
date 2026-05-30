@@ -4,6 +4,7 @@ import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Us
 import Button from '../../components/ui/Button'
 import { reactionsApi } from '../../api/reactions'
 import { sessionsApi } from '../../api/sessions'
+import { api } from '../../api/client'
 import { quizzesApi, type ActiveQuizQuestion } from '../../api/quizzes'
 import { useAuth } from '../../contexts/AuthContext'
 import type { SessionWithLecture, SessionParticipant, ReactionType } from '../../api/types'
@@ -146,6 +147,14 @@ export default function StudentLiveSessionPage() {
       try {
         await sessionsApi.leaveSession(sessionId)
       } catch { /* ignore */ }
+    }
+    // Гость: очищаем временный токен и флаг, возвращаем на главную
+    const isGuest = localStorage.getItem('is_guest') === 'true'
+    if (isGuest) {
+      localStorage.removeItem('is_guest')
+      api.setToken(null)
+      navigate('/')
+      return
     }
     if (isAuthenticated && user) {
       const path = user.role === 'STUDENT' ? '/student' : user.role === 'TEACHER' ? '/teacher' : '/'

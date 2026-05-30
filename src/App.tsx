@@ -10,6 +10,7 @@ import LoginPage from './pages/guest/LoginPage'
 import RegisterPage from './pages/guest/RegisterPage'
 import ForgotPasswordPage from './pages/guest/ForgotPasswordPage'
 import JoinSessionPage from './pages/guest/JoinSessionPage'
+import GuestNamePage from './pages/guest/GuestNamePage'
 
 import StudentDashboardPage from './pages/student/DashboardPage'
 import StudentCoursesPage from './pages/student/CoursesPage'
@@ -45,6 +46,7 @@ export default function App() {
       </Route>
 
       <Route path="/join" element={<JoinSessionPage />} />
+      <Route path="/join/name" element={<GuestNamePage />} />
       <Route path="/session/:sessionId/live" element={<StudentLiveSessionPage />} />
 
       <Route path="/student" element={<StudentLayout />}>

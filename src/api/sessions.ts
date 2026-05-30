@@ -1,5 +1,5 @@
 import api from './client'
-import type { Session, SessionWithLecture, SessionParticipant, CompletedSession } from './types'
+import type { Session, SessionWithLecture, SessionParticipant, CompletedSession, GuestJoinResponse } from './types'
 
 export const sessionsApi = {
   startSession: (lectureId: string): Promise<Session> => {
@@ -8,6 +8,13 @@ export const sessionsApi = {
 
   joinSession: (accessCode: string): Promise<SessionWithLecture> => {
     return api.post<SessionWithLecture>('/sessions/join', { access_code: accessCode })
+  },
+
+  joinSessionAsGuest: (accessCode: string, fullName: string): Promise<GuestJoinResponse> => {
+    return api.post<GuestJoinResponse>('/sessions/join/guest', {
+      access_code: accessCode,
+      full_name: fullName,
+    })
   },
 
   getActiveSession: (): Promise<Session | null> => {
