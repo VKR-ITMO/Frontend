@@ -67,6 +67,8 @@ export interface SubmissionAnswerView {
   correct_order?: string[]
   pairs?: Record<string, string>
   correct_pairs?: Record<string, string>
+  file_url?: string | null
+  file_name?: string | null
   is_correct: boolean | null
   raw: unknown
 }

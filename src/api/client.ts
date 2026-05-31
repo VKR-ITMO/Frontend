@@ -40,7 +40,15 @@ class ApiClient {
 
     if (response.status === 401) {
       this.setToken(null)
-      window.location.href = '/login'
+      // Гостя не отправляем на логин/регистрацию — он не имеет аккаунта.
+      // Возвращаем на страницу входа в сессию по коду.
+      const isGuest = localStorage.getItem('is_guest') === 'true'
+      if (isGuest) {
+        localStorage.removeItem('is_guest')
+        window.location.href = '/join'
+      } else {
+        window.location.href = '/login'
+      }
       throw new Error('Session expired')
     }
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Flame, HandMetal } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Flame, HandMetal, Download } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -8,7 +8,10 @@ import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 import { reactionsApi } from '../../api/reactions'
 import { quizzesApi, type ActiveQuizData, type SubmissionsDetailsResponse } from '../../api/quizzes'
+import { API_BASE_URL } from '../../api/client'
 import type { Session, SessionParticipant, ReactionStats, Quiz, SessionQuiz } from '../../api/types'
+
+const FILES_ORIGIN = API_BASE_URL.replace(/\/api\/v1\/?$/, '')
 
 interface NewQuestion {
   id: string
@@ -1099,7 +1102,21 @@ export default function ActiveSessionPage() {
                             )}
                           </div>
                           <p className="text-sm font-medium text-zinc-900 mb-2">{a.question_text}</p>
-                          {a.answer_texts.length === 0 || (a.answer_texts.length === 1 && !a.answer_texts[0]) ? (
+                          {a.type === 'FILE' ? (
+                            a.file_url ? (
+                              <a
+                                href={`${FILES_ORIGIN}${a.file_url}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 text-sm text-zinc-700 bg-zinc-50 border border-zinc-200 rounded px-3 py-2 hover:border-zinc-400 hover:text-zinc-900 transition-colors"
+                              >
+                                <Download className="w-4 h-4" />
+                                {a.file_name || 'Скачать файл'}
+                              </a>
+                            ) : (
+                              <p className="text-xs text-zinc-400 italic">{a.file_name || 'Файл не загружен'}</p>
+                            )
+                          ) : a.answer_texts.length === 0 || (a.answer_texts.length === 1 && !a.answer_texts[0]) ? (
                             <p className="text-xs text-zinc-400 italic">Нет ответа</p>
                           ) : (
                             <ul className="flex flex-col gap-1">

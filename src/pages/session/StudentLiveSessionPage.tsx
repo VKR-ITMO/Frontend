@@ -19,7 +19,7 @@ interface ActiveQuiz {
   textAnswers: Record<string, string>
   orderingAnswers: Record<string, string[]>
   matchingAnswers: Record<string, Record<string, string>>
-  fileAnswers: Record<string, { file_id: string; filename: string }>
+  fileAnswers: Record<string, { file_id: string; filename: string; url: string }>
 }
 
 export default function StudentLiveSessionPage() {
@@ -219,7 +219,7 @@ export default function StudentLiveSessionPage() {
         ...quiz,
         fileAnswers: {
           ...quiz.fileAnswers,
-          [questionId]: { file_id: data.file_id, filename: data.filename }
+          [questionId]: { file_id: data.file_id, filename: data.filename, url: data.file_url }
         }
       })
     } catch (error) {
@@ -253,7 +253,8 @@ export default function StudentLiveSessionPage() {
         if (q.type === 'TEXT') {
           answers[q.id] = [quiz.textAnswers[q.id] || '']
         } else if (q.type === 'FILE') {
-          answers[q.id] = [quiz.fileAnswers[q.id]?.file_id || '']
+          const fa = quiz.fileAnswers[q.id]
+          answers[q.id] = fa ? [JSON.stringify({ url: fa.url, filename: fa.filename })] : ['']
         } else if (q.type === 'ORDERING') {
           // State holds ordered answer ids — convert to texts for scoring
           const orderedIds = quiz.orderingAnswers[q.id] || q.answers.map((a) => a.id)
