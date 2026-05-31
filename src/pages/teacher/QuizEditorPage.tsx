@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, HelpCircle, Plus, Trash2, GripVertical, Save } from 'lucide-react'
+import { ArrowLeft, HelpCircle, Plus, Trash2, Save, Pencil, ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
@@ -23,6 +23,7 @@ interface Question {
   type: QuestionType
   text: string
   points: number
+  timer: number
   options?: string[]
   correctAnswers?: number[]
   // ORDERING: the ordered list of item texts (correct order)
@@ -82,6 +83,7 @@ export default function QuizEditorPage() {
           type: localType,
           text: bq.text,
           points: bq.points,
+          timer: bq.timer ?? 30,
         }
         if (localType === 'single' || localType === 'multiple' || localType === 'boolean') {
           q.options = bq.answers.map((a) => a.text)
@@ -114,7 +116,7 @@ export default function QuizEditorPage() {
           text: q.text || `Вопрос ${idx + 1}`,
           type: q.type.toUpperCase(),
           points: q.points || 10,
-          timer: 30,
+          timer: q.timer || 30,
           order_index: idx,
         }
 
@@ -170,8 +172,10 @@ export default function QuizEditorPage() {
 
   const [formText, setFormText] = useState('')
   const [formPoints, setFormPoints] = useState('10')
+  const [formTimer, setFormTimer] = useState('30')
   const [formOptions, setFormOptions] = useState(['', '', '', ''])
   const [formCorrect, setFormCorrect] = useState<number[]>([0])
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const [formLeftCol, setFormLeftCol] = useState(['', ''])
   const [formRightCol, setFormRightCol] = useState(['', ''])
@@ -180,19 +184,42 @@ export default function QuizEditorPage() {
   const resetForm = () => {
     setFormText('')
     setFormPoints('10')
+    setFormTimer('30')
     setFormOptions(['', '', '', ''])
     setFormCorrect([0])
     setFormLeftCol(['', ''])
     setFormRightCol(['', ''])
     setFormOrderItems(['', '', ''])
+    setEditingId(null)
   }
 
-  const addQuestion = () => {
-    const newQuestion: Question = {
-      id: Date.now().toString(),
+  const openAddModal = () => {
+    resetForm()
+    setSelectedType('single')
+    setAddOpen(true)
+  }
+
+  const openEditModal = (q: Question) => {
+    setEditingId(q.id)
+    setSelectedType(q.type)
+    setFormText(q.text)
+    setFormPoints(String(q.points))
+    setFormTimer(String(q.timer))
+    setFormOptions(q.options && q.options.length > 0 ? q.options : ['', '', '', ''])
+    setFormCorrect(q.correctAnswers && q.correctAnswers.length > 0 ? q.correctAnswers : [0])
+    setFormLeftCol(q.matchingLeft && q.matchingLeft.length > 0 ? q.matchingLeft : ['', ''])
+    setFormRightCol(q.matchingRight && q.matchingRight.length > 0 ? q.matchingRight : ['', ''])
+    setFormOrderItems(q.orderingItems && q.orderingItems.length > 0 ? q.orderingItems : ['', '', ''])
+    setAddOpen(true)
+  }
+
+  const submitQuestion = () => {
+    const built: Question = {
+      id: editingId || Date.now().toString(),
       type: selectedType,
       text: formText,
       points: parseInt(formPoints) || 10,
+      timer: parseInt(formTimer) || 30,
       options: (selectedType === 'single' || selectedType === 'multiple')
         ? formOptions.filter(o => o.trim())
         : selectedType === 'boolean'
@@ -207,9 +234,21 @@ export default function QuizEditorPage() {
       matchingLeft: selectedType === 'matching' ? formLeftCol.filter(o => o.trim()) : undefined,
       matchingRight: selectedType === 'matching' ? formRightCol.filter(o => o.trim()) : undefined,
     }
-    setQuestions([...questions, newQuestion])
+    if (editingId) {
+      setQuestions(questions.map((q) => (q.id === editingId ? built : q)))
+    } else {
+      setQuestions([...questions, built])
+    }
     setAddOpen(false)
     resetForm()
+  }
+
+  const moveQuestion = (idx: number, dir: -1 | 1) => {
+    const target = idx + dir
+    if (target < 0 || target >= questions.length) return
+    const updated = [...questions]
+    ;[updated[idx], updated[target]] = [updated[target], updated[idx]]
+    setQuestions(updated)
   }
 
   const removeQuestion = (id: string) => setQuestions(questions.filter((q) => q.id !== id))
@@ -236,7 +275,7 @@ export default function QuizEditorPage() {
           />
         </div>
         <div className="flex gap-3">
-          <Button onClick={() => setAddOpen(true)}>+ Добавить вопрос</Button>
+          <Button onClick={openAddModal}>+ Добавить вопрос</Button>
           <Button variant="secondary" onClick={handleSaveQuiz}><Save className="w-4 h-4 mr-2" /> Сохранить</Button>
         </div>
       </div>
@@ -254,22 +293,42 @@ export default function QuizEditorPage() {
           {questions.map((q, idx) => (
             <div key={q.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <GripVertical className="w-4 h-4 text-zinc-300" />
+                <div className="flex flex-col">
+                  <button
+                    onClick={() => moveQuestion(idx, -1)}
+                    disabled={idx === 0}
+                    className="p-0.5 text-zinc-300 hover:text-zinc-600 disabled:opacity-30 disabled:hover:text-zinc-300 transition-colors"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => moveQuestion(idx, 1)}
+                    disabled={idx === questions.length - 1}
+                    className="p-0.5 text-zinc-300 hover:text-zinc-600 disabled:opacity-30 disabled:hover:text-zinc-300 transition-colors"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                  </button>
+                </div>
                 <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center text-xs font-semibold text-zinc-600">{idx + 1}</div>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium text-zinc-900">{q.text || `Вопрос ${idx + 1}`}</span>
-                  <span className="text-xs text-zinc-400">{questionTypeLabels[q.type]} · {q.points} баллов</span>
+                  <span className="text-xs text-zinc-400">{questionTypeLabels[q.type]} · {q.points} баллов · {q.timer}с</span>
                 </div>
               </div>
-              <button onClick={() => removeQuestion(q.id)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors">
-                <Trash2 className="w-4 h-4 text-zinc-500" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={() => openEditModal(q)} className="p-1.5 hover:bg-zinc-100 rounded-full transition-colors">
+                  <Pencil className="w-4 h-4 text-zinc-500" />
+                </button>
+                <button onClick={() => removeQuestion(q.id)} className="p-1.5 hover:bg-zinc-100 rounded-full transition-colors">
+                  <Trash2 className="w-4 h-4 text-zinc-500" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
       )}
 
-      <Modal open={addOpen} onClose={() => { setAddOpen(false); resetForm() }} title="Добавить вопрос" width="w-[520px]">
+      <Modal open={addOpen} onClose={() => { setAddOpen(false); resetForm() }} title={editingId ? 'Редактировать вопрос' : 'Добавить вопрос'} width="w-[520px]">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <label className="text-xs font-medium text-zinc-900 tracking-wide">Тип вопроса</label>
@@ -283,7 +342,10 @@ export default function QuizEditorPage() {
           </div>
 
           <Input label="Текст вопроса" value={formText} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormText(e.target.value)} placeholder="Введите вопрос" />
-          <Input label="Баллы" value={formPoints} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormPoints(e.target.value)} placeholder="10" />
+          <div className="flex gap-3">
+            <Input label="Баллы" type="number" value={formPoints} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormPoints(e.target.value)} placeholder="10" />
+            <Input label="Таймер (сек)" type="number" value={formTimer} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormTimer(e.target.value)} placeholder="30" />
+          </div>
 
           {(selectedType === 'single' || selectedType === 'multiple') && (
             <div className="flex flex-col gap-2">
@@ -379,7 +441,7 @@ export default function QuizEditorPage() {
         </div>
         <div className="flex gap-4">
           <Button variant="secondary" className="flex-1" onClick={() => { setAddOpen(false); resetForm() }}>Отмена</Button>
-          <Button className="flex-1" onClick={addQuestion}>Добавить</Button>
+          <Button className="flex-1" onClick={submitQuestion}>{editingId ? 'Сохранить' : 'Добавить'}</Button>
         </div>
       </Modal>
     </div>

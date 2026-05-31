@@ -784,10 +784,22 @@ export default function ActiveSessionPage() {
                   <label className="text-xs text-zinc-600">Таймер (сек):</label>
                   <input
                     type="number"
+                    min={0}
                     className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
                     placeholder="30"
                     value={q.timer}
                     onChange={(e) => updateQuestion(qIdx, 'timer', parseInt(e.target.value) || 30)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-zinc-600">Баллы:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                    placeholder="1"
+                    value={q.points}
+                    onChange={(e) => updateQuestion(qIdx, 'points', parseInt(e.target.value) || 1)}
                   />
                 </div>
               </div>
