@@ -1,31 +1,172 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, HelpCircle, Plus, Trash2, GripVertical } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
+import { ArrowLeft, HelpCircle, Plus, Trash2, GripVertical, Save } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
+import { quizzesApi } from '../../api/quizzes'
+import type { Quiz, QuizWithQuestions } from '../../api/types'
 
-type QuestionType = 'single' | 'multiple' | 'matching' | 'ordering' | 'file'
+type QuestionType = 'single' | 'multiple' | 'boolean' | 'matching' | 'ordering' | 'file'
 
 const questionTypeLabels: Record<QuestionType, string> = {
   single: 'Одиночный выбор',
   multiple: 'Множественный выбор',
+  boolean: 'Верно/Неверно',
   matching: 'Соответствие',
   ordering: 'Расстановка по порядку',
   file: 'Загрузка файла',
 }
 
 interface Question {
-  id: number
+  id: string
   type: QuestionType
   text: string
   points: number
+  options?: string[]
+  correctAnswers?: number[]
+  // ORDERING: the ordered list of item texts (correct order)
+  orderingItems?: string[]
+  // MATCHING: parallel lists; matchingLeft[i] ↔ matchingRight[i] is the correct pair
+  matchingLeft?: string[]
+  matchingRight?: string[]
 }
 
 export default function QuizEditorPage() {
+  const { courseId, quizId } = useParams<{ courseId: string; quizId: string }>()
+  const navigate = useNavigate()
+  const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
+  const [loading, setLoading] = useState(true)
   const [addOpen, setAddOpen] = useState(false)
   const [selectedType, setSelectedType] = useState<QuestionType>('single')
+  const [quizTitle, setQuizTitle] = useState('')
+  const [quizDescription, setQuizDescription] = useState('')
+
+  useEffect(() => {
+    if (quizId) loadQuiz()
+  }, [quizId])
+
+  const loadQuiz = async () => {
+    if (!quizId) return
+    try {
+      setLoading(true)
+      const data = await quizzesApi.getQuiz(quizId)
+      setQuiz(data)
+      setQuizTitle(data.title)
+      setQuizDescription(data.description || '')
+
+      // Map existing backend questions into local Question shape
+      // Backend question fields: id, text, type (UPPERCASE enum), points, timer, answers[], extra_data
+      const backendQuestions = (data as unknown as {
+        questions: Array<{
+          id: string
+          text: string
+          type: string
+          points: number
+          timer?: number
+          extra_data?: Record<string, unknown> | null
+          answers: Array<{ id: string; text: string; is_correct: boolean }>
+        }>
+      }).questions || []
+
+      const mapped: Question[] = backendQuestions.map((bq) => {
+        const localType = bq.type.toLowerCase() as QuestionType
+        const extra = (bq.extra_data || {}) as {
+          correct_order?: string[]
+          left_column?: string[]
+          right_column?: string[]
+        }
+        const q: Question = {
+          id: bq.id,
+          type: localType,
+          text: bq.text,
+          points: bq.points,
+        }
+        if (localType === 'single' || localType === 'multiple' || localType === 'boolean') {
+          q.options = bq.answers.map((a) => a.text)
+          q.correctAnswers = bq.answers
+            .map((a, i) => (a.is_correct ? i : -1))
+            .filter((i) => i >= 0)
+        } else if (localType === 'ordering') {
+          q.orderingItems = extra.correct_order && extra.correct_order.length > 0
+            ? extra.correct_order
+            : bq.answers.map((a) => a.text)
+        } else if (localType === 'matching') {
+          q.matchingLeft = extra.left_column || []
+          q.matchingRight = extra.right_column || []
+        }
+        return q
+      })
+      setQuestions(mapped)
+    } catch (error) {
+      console.error('Failed to load quiz:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSaveQuiz = async () => {
+    if (!quizId) return
+    try {
+      const questionsPayload = questions.map((q, idx) => {
+        const base = {
+          text: q.text || `Вопрос ${idx + 1}`,
+          type: q.type.toUpperCase(),
+          points: q.points || 10,
+          timer: 30,
+          order_index: idx,
+        }
+
+        if (q.type === 'single' || q.type === 'multiple' || q.type === 'boolean') {
+          return {
+            ...base,
+            answers: (q.options || []).map((opt, i) => ({
+              text: opt,
+              is_correct: (q.correctAnswers || []).includes(i),
+            })),
+          }
+        }
+
+        if (q.type === 'ordering') {
+          const items = q.orderingItems || []
+          return {
+            ...base,
+            answers: items.map((item, i) => ({ text: item, is_correct: i === 0 })),
+            extra_data: { correct_order: items },
+          }
+        }
+
+        if (q.type === 'matching') {
+          const left = q.matchingLeft || []
+          const right = q.matchingRight || []
+          const correct_pairs: Record<string, string> = {}
+          for (let i = 0; i < left.length && i < right.length; i++) {
+            correct_pairs[left[i]] = right[i]
+          }
+          return {
+            ...base,
+            answers: [],
+            extra_data: {
+              left_column: left,
+              right_column: right,
+              correct_pairs,
+            },
+          }
+        }
+
+        // text / file
+        return { ...base, answers: [] }
+      })
+      await quizzesApi.updateQuiz(quizId, {
+        title: quizTitle,
+        questions: questionsPayload,
+      })
+      navigate(`/teacher/courses/${courseId}`)
+    } catch (error) {
+      console.error('Failed to save quiz:', error)
+    }
+  }
 
   const [formText, setFormText] = useState('')
   const [formPoints, setFormPoints] = useState('10')
@@ -47,24 +188,57 @@ export default function QuizEditorPage() {
   }
 
   const addQuestion = () => {
-    setQuestions([...questions, { id: Date.now(), type: selectedType, text: formText, points: parseInt(formPoints) || 10 }])
+    const newQuestion: Question = {
+      id: Date.now().toString(),
+      type: selectedType,
+      text: formText,
+      points: parseInt(formPoints) || 10,
+      options: (selectedType === 'single' || selectedType === 'multiple')
+        ? formOptions.filter(o => o.trim())
+        : selectedType === 'boolean'
+          ? ['Верно', 'Неверно']
+          : undefined,
+      correctAnswers: (selectedType === 'single' || selectedType === 'multiple')
+        ? formCorrect
+        : selectedType === 'boolean'
+          ? formCorrect
+          : undefined,
+      orderingItems: selectedType === 'ordering' ? formOrderItems.filter(o => o.trim()) : undefined,
+      matchingLeft: selectedType === 'matching' ? formLeftCol.filter(o => o.trim()) : undefined,
+      matchingRight: selectedType === 'matching' ? formRightCol.filter(o => o.trim()) : undefined,
+    }
+    setQuestions([...questions, newQuestion])
     setAddOpen(false)
     resetForm()
   }
 
-  const removeQuestion = (id: number) => setQuestions(questions.filter((q) => q.id !== id))
+  const removeQuestion = (id: string) => setQuestions(questions.filter((q) => q.id !== id))
 
-  const questionTypes: QuestionType[] = ['single', 'multiple', 'matching', 'ordering', 'file']
+  const questionTypes: QuestionType[] = ['single', 'multiple', 'boolean', 'matching', 'ordering', 'file']
+
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen"><p className="text-zinc-500">Загрузка...</p></div>
+  }
 
   return (
     <div className="flex flex-col gap-8 p-8 min-h-screen">
-      <Link to="/teacher/courses/1" className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors w-fit">
-        <ArrowLeft className="w-4 h-4" /> Назад
+      <Link to={`/teacher/courses/${courseId}`} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 transition-colors w-fit">
+        <ArrowLeft className="w-4 h-4" /> Назад к курсу
       </Link>
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900 tracking-tight">Квиз: Введение</h1>
-        <Button onClick={() => setAddOpen(true)}>+ Добавить вопрос</Button>
+        <div className="flex flex-col gap-2">
+          <Input 
+            value={quizTitle}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setQuizTitle(e.target.value)}
+            className="text-2xl font-semibold"
+            placeholder="Название квиза"
+          />
+        </div>
+        <div className="flex gap-3">
+          <Button onClick={() => setAddOpen(true)}>+ Добавить вопрос</Button>
+          <Button variant="secondary" onClick={handleSaveQuiz}><Save className="w-4 h-4 mr-2" /> Сохранить</Button>
+        </div>
       </div>
 
       {questions.length === 0 ? (
@@ -133,6 +307,34 @@ export default function QuizEditorPage() {
                 </div>
               ))}
               <button onClick={() => setFormOptions([...formOptions, ''])} className="text-xs text-zinc-500 hover:text-zinc-900 flex items-center gap-1 w-fit"><Plus className="w-3 h-3" /> Добавить вариант</button>
+            </div>
+          )}
+
+          {selectedType === 'boolean' && (
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium text-zinc-900 tracking-wide">Правильный ответ</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="boolean_correct"
+                    checked={formCorrect[0] === 0}
+                    onChange={() => setFormCorrect([0])}
+                    className="accent-zinc-900"
+                  />
+                  <span className="text-sm text-zinc-700">Верно</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="boolean_correct"
+                    checked={formCorrect[0] === 1}
+                    onChange={() => setFormCorrect([1])}
+                    className="accent-zinc-900"
+                  />
+                  <span className="text-sm text-zinc-700">Неверно</span>
+                </label>
+              </div>
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { AuthProvider, useAuth } from './AuthContext'
+import type { User } from '../api/types'
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -39,12 +40,12 @@ describe('AuthContext', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    let success: boolean = false
+    let user: User | null = null
     await act(async () => {
-      success = await result.current.login('student@test.com', 'student123')
+      user = await result.current.login('student@test.com', 'student123')
     })
 
-    expect(success).toBe(true)
+    expect(user).not.toBeNull()
     expect(result.current.user).not.toBeNull()
     expect(result.current.user?.role).toBe('student')
     expect(result.current.user?.email).toBe('student@test.com')
@@ -58,12 +59,12 @@ describe('AuthContext', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    let success: boolean = false
+    let user: User | null = null
     await act(async () => {
-      success = await result.current.login('teacher@test.com', 'teacher123')
+      user = await result.current.login('teacher@test.com', 'teacher123')
     })
 
-    expect(success).toBe(true)
+    expect(user).not.toBeNull()
     expect(result.current.user?.role).toBe('teacher')
   })
 
@@ -74,12 +75,12 @@ describe('AuthContext', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    let success: boolean = false
+    let user: User | null = null
     await act(async () => {
-      success = await result.current.login('admin@test.com', 'admin123')
+      user = await result.current.login('admin@test.com', 'admin123')
     })
 
-    expect(success).toBe(true)
+    expect(user).not.toBeNull()
     expect(result.current.user?.role).toBe('admin')
   })
 
@@ -90,12 +91,12 @@ describe('AuthContext', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    let success: boolean = true
+    let user: User | null = null
     await act(async () => {
-      success = await result.current.login('wrong@test.com', 'wrongpassword')
+      user = await result.current.login('wrong@test.com', 'wrongpassword')
     })
 
-    expect(success).toBe(false)
+    expect(user).toBeNull()
     expect(result.current.user).toBeNull()
     expect(result.current.isAuthenticated).toBe(false)
   })
@@ -107,12 +108,12 @@ describe('AuthContext', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    let success: boolean = true
+    let user: User | null = null
     await act(async () => {
-      success = await result.current.login('student@test.com', 'wrongpassword')
+      user = await result.current.login('student@test.com', 'wrongpassword')
     })
 
-    expect(success).toBe(false)
+    expect(user).toBeNull()
     expect(result.current.user).toBeNull()
   })
 
@@ -164,12 +165,12 @@ describe('AuthContext', () => {
       expect(result.current.isLoading).toBe(false)
     })
 
-    let success: boolean = false
+    let user: User | null = null
     await act(async () => {
-      success = await result.current.login('STUDENT@TEST.COM', 'student123')
+      user = await result.current.login('STUDENT@TEST.COM', 'student123')
     })
 
-    expect(success).toBe(true)
+    expect(user).not.toBeNull()
     expect(result.current.user?.email).toBe('student@test.com')
   })
 })

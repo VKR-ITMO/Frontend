@@ -11,6 +11,7 @@ interface CourseCardProps {
   studentCount?: string
   linkTo: string
   buttonLabel?: string
+  imageUrl?: string
 }
 
 export default function CourseCard({
@@ -22,12 +23,19 @@ export default function CourseCard({
   studentCount,
   linkTo,
   buttonLabel = 'Открыть курс',
+  imageUrl,
 }: CourseCardProps) {
   return (
     <div className="border border-black/10 rounded-2xl overflow-hidden flex flex-col">
-      <div className="h-52 bg-zinc-200 flex items-center justify-center">
-        <GraduationCap className="w-16 h-16 text-zinc-400" />
-      </div>
+      {imageUrl ? (
+        <div className="h-52 bg-zinc-100">
+          <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+        </div>
+      ) : (
+        <div className="h-52 bg-zinc-200 flex items-center justify-center">
+          <GraduationCap className="w-16 h-16 text-zinc-400" />
+        </div>
+      )}
       <div className="bg-white p-4 flex flex-col gap-4">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">

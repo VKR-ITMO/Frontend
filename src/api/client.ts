@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
 
 class ApiClient {
   private accessToken: string | null = null
@@ -40,7 +40,15 @@ class ApiClient {
 
     if (response.status === 401) {
       this.setToken(null)
-      window.location.href = '/login'
+      // Гостя не отправляем на логин/регистрацию — он не имеет аккаунта.
+      // Возвращаем на страницу входа в сессию по коду.
+      const isGuest = localStorage.getItem('is_guest') === 'true'
+      if (isGuest) {
+        localStorage.removeItem('is_guest')
+        window.location.href = '/join'
+      } else {
+        window.location.href = '/login'
+      }
       throw new Error('Session expired')
     }
 
