@@ -43,6 +43,8 @@ export default function StudentLiveSessionPage() {
   const [lastScore, setLastScore] = useState<number | null>(null)
   // Дедлайн текущего вопроса (timestamp в мс). null — вопрос без таймера
   const [questionDeadline, setQuestionDeadline] = useState<number | null>(null)
+  // Флаг идущей отправки — защита от двойного сабмита (клик + таймер)
+  const submittingRef = useRef(false)
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -266,6 +268,12 @@ export default function StudentLiveSessionPage() {
   const submitQuiz = async () => {
     if (!quiz) return
     const submittedId = quiz.sessionQuizId
+    // Защита от двойной отправки (клик «Отправить» + авто-сабмит по таймеру,
+    // либо повторный вызов после ре-поллинга). Иначе второй запрос мог падать
+    // и показывать ошибку, хотя ответы уже сохранены.
+    if (submittingRef.current || submittedQuizIds.has(submittedId)) return
+    submittingRef.current = true
+    setError('')
     try {
       const answers: Record<string, string[]> = {}
       for (const q of quiz.questions) {
@@ -297,14 +305,17 @@ export default function StudentLiveSessionPage() {
         const errorMsg = error?.message || 'Не удалось отправить ответы'
         if (errorMsg.includes('401') || errorMsg.includes('Unauthorized')) {
           setError('Сессия истекла. Войдите снова.')
-        } else if (errorMsg.includes('404')) {
-          setError('Квиз не найден.')
+          setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
         } else if (errorMsg.includes('already submitted')) {
-          setError('Вы уже отправили ответы на этот квиз.')
+          // Ответы уже сохранены ранее — это не ошибка для пользователя
+          setQuizResult({ score: lastScore ?? 0, correct: 0, total: quiz.questions.length })
+        } else if (errorMsg.includes('not active') || errorMsg.includes('404')) {
+          // Квиз завершён/не найден — ответы, как правило, уже приняты. Не пугаем ошибкой.
+          setQuizResult({ score: lastScore ?? 0, correct: 0, total: quiz.questions.length })
         } else {
           setError('Не удалось отправить ответы.')
+          setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
         }
-        setQuizResult({ score: 0, correct: 0, total: quiz.questions.length })
       }
       setQuiz(null)
       setSubmittedQuizIds((prev) => {
@@ -315,6 +326,8 @@ export default function StudentLiveSessionPage() {
     } catch (error: any) {
       console.error('Submit failed:', error)
       setError('Не удалось отправить ответы.')
+    } finally {
+      submittingRef.current = false
     }
   }
 
