@@ -98,11 +98,28 @@ export default function StudentLiveSessionPage() {
           activeQuiz.questions.length > 0 &&
           !submittedQuizIds.has(activeQuiz.session_quiz_id)
         ) {
-          // Initialize ordering state from questions so drag-and-drop has an initial order
+          // Initialize ordering state from questions so drag-and-drop has an initial order.
+          // Перемешиваем элементы, чтобы студент не видел сразу правильный порядок.
+          const shuffle = (ids: string[]): string[] => {
+            if (ids.length < 2) return ids
+            const original = ids.join('|')
+            let shuffled = ids
+            // Перемешиваем (Фишер–Йетс), повторяем если совпало с исходным порядком
+            for (let attempt = 0; attempt < 5; attempt++) {
+              const next = [...ids]
+              for (let i = next.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1))
+                ;[next[i], next[j]] = [next[j], next[i]]
+              }
+              shuffled = next
+              if (next.join('|') !== original) break
+            }
+            return shuffled
+          }
           const initialOrdering: Record<string, string[]> = {}
           activeQuiz.questions.forEach((q) => {
             if (q.type === 'ORDERING') {
-              initialOrdering[q.id] = q.answers.map((a) => a.id)
+              initialOrdering[q.id] = shuffle(q.answers.map((a) => a.id))
             }
           })
           setQuiz({

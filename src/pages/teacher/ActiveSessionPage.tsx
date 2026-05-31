@@ -1057,7 +1057,7 @@ export default function ActiveSessionPage() {
         title={`Ответы студентов: ${submissionsTitle}`}
         width="w-[760px]"
       >
-        <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+        <div className="flex flex-col gap-3">
           {submissionsLoading ? (
             <p className="text-center py-8 text-zinc-500">Загрузка...</p>
           ) : !submissionsData || submissionsData.submissions.length === 0 ? (
