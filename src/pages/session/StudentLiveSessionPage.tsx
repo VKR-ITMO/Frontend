@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star, Check, X, Upload } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -41,6 +41,8 @@ export default function StudentLiveSessionPage() {
   const REACTION_COOLDOWN_MS = 5000
   const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(new Set())
   const [lastScore, setLastScore] = useState<number | null>(null)
+  // Дедлайн текущего вопроса (timestamp в мс). null — вопрос без таймера
+  const [questionDeadline, setQuestionDeadline] = useState<number | null>(null)
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -299,6 +301,45 @@ export default function StudentLiveSessionPage() {
     }
   }
 
+  // Рефы на актуальные значения, чтобы таймер-интервал не пересоздавался
+  // при каждом выборе ответа, но всегда работал с последним состоянием
+  const quizRef = useRef(quiz)
+  quizRef.current = quiz
+  const submitQuizRef = useRef(submitQuiz)
+  submitQuizRef.current = submitQuiz
+
+  // Запускаем/сбрасываем таймер при смене вопроса или старте квиза
+  useEffect(() => {
+    if (!quiz) {
+      setQuestionDeadline(null)
+      return
+    }
+    const q = quiz.questions[quiz.currentQuestion]
+    setQuestionDeadline(q && q.timer && q.timer > 0 ? Date.now() + q.timer * 1000 : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quiz?.sessionQuizId, quiz?.currentQuestion])
+
+  // Тик обратного отсчёта + авто-переход/авто-сабмит по истечении времени
+  useEffect(() => {
+    if (questionDeadline === null) return
+    const tick = () => {
+      if (Date.now() < questionDeadline) {
+        setNowTick(Date.now())
+        return
+      }
+      setQuestionDeadline(null)
+      const cur = quizRef.current
+      if (!cur) return
+      if (cur.currentQuestion < cur.questions.length - 1) {
+        setQuiz((prev) => (prev ? { ...prev, currentQuestion: prev.currentQuestion + 1 } : prev))
+      } else {
+        submitQuizRef.current()
+      }
+    }
+    const t = setInterval(tick, 250)
+    return () => clearInterval(t)
+  }, [questionDeadline])
+
   // End-of-session page
   if (sessionEnded) {
     const totalParticipants = participantsList.length
@@ -347,55 +388,6 @@ export default function StudentLiveSessionPage() {
     )
   }
 
-  if (quiz) {
-    const currentQ = quiz.questions[quiz.currentQuestion]
-    return (
-      <div className="min-h-screen bg-white">
-        <div className="border-b border-zinc-100 px-36 py-4 flex items-center justify-between">
-          <div className="flex flex-col gap-1">
-            <h1 className="text-sm font-semibold text-zinc-900 truncate">{quiz.title || session?.lecture?.name || 'Квиз'}</h1>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span className="text-xs text-zinc-500">В эфире · {elapsed}</span>
-              </div>
-            </div>
-          </div>
-          <span className="text-xs text-zinc-400">Вопрос {quiz.currentQuestion + 1} из {quiz.questions.length}</span>
-        </div>
-        <div className="px-36 py-8 max-w-[722px] mx-auto">
-          {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mb-4">{error}</p>}
-          <QuizQuestionView
-            question={currentQ}
-            selectedAnswers={quiz.selectedAnswers[currentQ.id] || []}
-            textAnswer={quiz.textAnswers[currentQ.id] || ''}
-            onSelectSingle={(aid) => selectSingleAnswer(currentQ.id, aid)}
-            onToggleMultiple={(aid) => toggleMultipleAnswer(currentQ.id, aid)}
-            onTextChange={(text) => setTextAnswer(currentQ.id, text)}
-            quiz={quiz}
-            handleFileUpload={handleFileUpload}
-            setMatchingAnswer={setMatchingAnswer}
-            setOrderingAnswer={setOrderingAnswer}
-          />
-          <div className="flex justify-between mt-8">
-            {quiz.currentQuestion > 0 && (
-              <Button variant="secondary" onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion - 1 })}>
-                Назад
-              </Button>
-            )}
-            {quiz.currentQuestion < quiz.questions.length - 1 ? (
-              <Button onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion + 1 })} className="ml-auto">
-                Далее
-              </Button>
-            ) : (
-              <Button onClick={submitQuiz} className="ml-auto">Отправить</Button>
-            )}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const reactions = [
     { type: 'THUMBS_UP' as ReactionType, label: 'Понятно', icon: <ThumbsUp className="w-6 h-6 text-zinc-400" /> },
     { type: 'CONFUSED' as ReactionType, label: 'Непонятно', icon: <ThumbsDown className="w-6 h-6 text-zinc-400" /> },
@@ -406,6 +398,10 @@ export default function StudentLiveSessionPage() {
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
   }
+
+  const currentQ = quiz ? quiz.questions[quiz.currentQuestion] : null
+  const timeLeft =
+    questionDeadline !== null ? Math.max(0, Math.ceil((questionDeadline - nowTick) / 1000)) : null
 
   return (
     <div className="min-h-screen bg-white">
@@ -447,14 +443,80 @@ export default function StudentLiveSessionPage() {
             </div>
           )}
 
-          {/* Waiting for next quiz */}
-          <div className="bg-zinc-50 rounded-lg flex flex-col items-center justify-center py-8 gap-2">
-            <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
-              <Clock className="w-5 h-5 text-zinc-400" />
+          {/* Активный квиз — проходит прямо здесь, на месте блока ожидания */}
+          {quiz && currentQ ? (
+            <div className="bg-zinc-50 rounded-lg p-5 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-400">
+                  Вопрос {quiz.currentQuestion + 1} из {quiz.questions.length}
+                </span>
+                {timeLeft !== null && (
+                  <span
+                    className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 ${
+                      timeLeft <= 5 ? 'bg-red-100 text-red-700' : 'bg-white border border-zinc-200 text-zinc-600'
+                    }`}
+                  >
+                    <Clock className="w-3 h-3" />
+                    {timeLeft}с
+                  </span>
+                )}
+              </div>
+              {timeLeft !== null && currentQ.timer > 0 && (
+                <div className="h-1 bg-zinc-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-300 ${timeLeft <= 5 ? 'bg-red-500' : 'bg-zinc-900'}`}
+                    style={{ width: `${Math.min(100, (timeLeft / currentQ.timer) * 100)}%` }}
+                  />
+                </div>
+              )}
+              {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+              <div className="max-h-[calc(100vh-360px)] overflow-y-auto">
+                <QuizQuestionView
+                  question={currentQ}
+                  selectedAnswers={quiz.selectedAnswers[currentQ.id] || []}
+                  textAnswer={quiz.textAnswers[currentQ.id] || ''}
+                  onSelectSingle={(aid) => selectSingleAnswer(currentQ.id, aid)}
+                  onToggleMultiple={(aid) => toggleMultipleAnswer(currentQ.id, aid)}
+                  onTextChange={(text) => setTextAnswer(currentQ.id, text)}
+                  quiz={quiz}
+                  handleFileUpload={handleFileUpload}
+                  setMatchingAnswer={setMatchingAnswer}
+                  setOrderingAnswer={setOrderingAnswer}
+                />
+              </div>
+              <div className="flex justify-between">
+                {quiz.currentQuestion > 0 && (
+                  <Button
+                    variant="secondary"
+                    onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion - 1 })}
+                  >
+                    Назад
+                  </Button>
+                )}
+                {quiz.currentQuestion < quiz.questions.length - 1 ? (
+                  <Button
+                    onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion + 1 })}
+                    className="ml-auto"
+                  >
+                    Далее
+                  </Button>
+                ) : (
+                  <Button onClick={submitQuiz} className="ml-auto">
+                    Отправить
+                  </Button>
+                )}
+              </div>
             </div>
-            <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
-            <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
-          </div>
+          ) : (
+            /* Waiting for next quiz */
+            <div className="bg-zinc-50 rounded-lg flex flex-col items-center justify-center py-8 gap-2">
+              <div className="w-12 h-12 bg-white border border-zinc-200 rounded-full flex items-center justify-center">
+                <Clock className="w-5 h-5 text-zinc-400" />
+              </div>
+              <p className="text-sm font-medium text-zinc-600">Ожидание следующего вопроса</p>
+              <p className="text-xs text-zinc-400">Преподаватель скоро запустит квиз</p>
+            </div>
+          )}
 
           {/* Reactions */}
           <div className="flex flex-col gap-4">
