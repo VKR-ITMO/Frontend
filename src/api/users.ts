@@ -13,4 +13,11 @@ export const usersApi = {
   getStudentStats: (userId: string): Promise<StudentStats> => {
     return api.get<StudentStats>(`/users/${userId}/stats`)
   },
+
+  changePassword: (userId: string, currentPassword: string, newPassword: string): Promise<void> => {
+    return api.post<void>(`/users/${userId}/password`, {
+      current_password: currentPassword,
+      new_password: newPassword,
+    })
+  },
 }

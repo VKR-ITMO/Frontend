@@ -4,7 +4,7 @@ import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Us
 import Button from '../../components/ui/Button'
 import { reactionsApi } from '../../api/reactions'
 import { sessionsApi } from '../../api/sessions'
-import { api } from '../../api/client'
+import { api, API_BASE_URL } from '../../api/client'
 import { quizzesApi, type ActiveQuizQuestion } from '../../api/quizzes'
 import { useAuth } from '../../contexts/AuthContext'
 import type { SessionWithLecture, SessionParticipant, ReactionType } from '../../api/types'
@@ -35,7 +35,10 @@ export default function StudentLiveSessionPage() {
   const [quizResult, setQuizResult] = useState<{ score: number; correct: number; total: number } | null>(null)
   const [sessionEnded, setSessionEnded] = useState(false)
   const [reactionCounts, setReactionCounts] = useState({ THUMBS_UP: 0, CONFUSED: 0, THINKING: 0, FIRE: 0 })
-  const [lastReaction, setLastReaction] = useState<string | null>(null)
+  // Кулдаун по каждому типу реакции (timestamp окончания в мс) — совпадает с серверным лимитом 5с
+  const [reactionCooldowns, setReactionCooldowns] = useState<Record<string, number>>({})
+  const [nowTick, setNowTick] = useState(Date.now())
+  const REACTION_COOLDOWN_MS = 5000
   const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(new Set())
   const [lastScore, setLastScore] = useState<number | null>(null)
 
@@ -121,13 +124,23 @@ export default function StudentLiveSessionPage() {
     return () => clearInterval(interval)
   }, [sessionId, sessionEnded, quiz, submittedQuizIds])
 
+  // Тик для обратного отсчёта кулдауна реакций (только когда есть активный кулдаун)
+  useEffect(() => {
+    const hasActiveCooldown = Object.values(reactionCooldowns).some(t => t > Date.now())
+    if (!hasActiveCooldown) return
+    const t = setInterval(() => setNowTick(Date.now()), 500)
+    return () => clearInterval(t)
+  }, [reactionCooldowns, nowTick])
+
   const sendReaction = async (type: ReactionType) => {
-    if (!sessionId || lastReaction === type) return
+    if (!sessionId) return
+    // Блокируем повторную отправку того же типа в течение кулдауна (как на бэкенде)
+    if ((reactionCooldowns[type] || 0) > Date.now()) return
+    // Сразу ставим кулдаун, чтобы исключить лишние запросы при быстрых кликах
+    setReactionCooldowns(prev => ({ ...prev, [type]: Date.now() + REACTION_COOLDOWN_MS }))
     try {
       await reactionsApi.sendReaction(sessionId, type)
-      setLastReaction(type)
       setReactionCounts(prev => ({ ...prev, [type]: prev[type as keyof typeof prev] + 1 }))
-      setTimeout(() => setLastReaction(null), 5000)
     } catch (error: any) {
       console.error('Reaction failed:', error)
       const errorMsg = error?.message || 'Не удалось отправить реакцию'
@@ -135,6 +148,8 @@ export default function StudentLiveSessionPage() {
         setError('Сессия истекла. Войдите снова.')
       } else if (errorMsg.includes('404')) {
         setError('Сессия не найдена.')
+      } else if (errorMsg.includes('Too many') || errorMsg.includes('wait')) {
+        // Серверный лимит — кулдаун уже выставлен, тихо игнорируем
       } else {
         setError('Не удалось отправить реакцию.')
       }
@@ -189,7 +204,7 @@ export default function StudentLiveSessionPage() {
       const formData = new FormData()
       formData.append('file', file)
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quizzes/upload`, {
+      const response = await fetch(`${API_BASE_URL}/quizzes/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -444,12 +459,18 @@ export default function StudentLiveSessionPage() {
           <div className="flex flex-col gap-4">
             <h3 className="text-sm font-semibold text-zinc-900">Ваша реакция</h3>
             <div className="grid grid-cols-2 gap-4">
-              {reactions.map((r) => (
+              {reactions.map((r) => {
+                const remaining = Math.max(0, Math.ceil(((reactionCooldowns[r.type] || 0) - nowTick) / 1000))
+                const onCooldown = remaining > 0
+                return (
                 <button
                   key={r.type}
                   onClick={() => sendReaction(r.type)}
+                  disabled={onCooldown}
                   className={`bg-white border rounded-lg px-3 py-3 flex items-center gap-3 transition-colors ${
-                    lastReaction === r.type ? 'border-zinc-900 bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300'
+                    onCooldown
+                      ? 'border-zinc-200 opacity-50 cursor-not-allowed'
+                      : 'border-zinc-200 hover:border-zinc-300'
                   }`}
                 >
                   <div className="w-12 h-12 bg-zinc-100 rounded-lg flex items-center justify-center shrink-0">
@@ -457,10 +478,13 @@ export default function StudentLiveSessionPage() {
                   </div>
                   <div className="flex flex-col items-start">
                     <span className="text-sm font-medium text-zinc-900">{r.label}</span>
-                    <span className="text-xs text-zinc-400">{reactionCounts[r.type as keyof typeof reactionCounts]} реакций</span>
+                    <span className="text-xs text-zinc-400">
+                      {onCooldown ? `Подождите ${remaining}с` : `${reactionCounts[r.type as keyof typeof reactionCounts]} реакций`}
+                    </span>
                   </div>
                 </button>
-              ))}
+                )
+              })}
             </div>
           </div>
         </div>

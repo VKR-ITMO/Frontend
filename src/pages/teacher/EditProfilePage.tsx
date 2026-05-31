@@ -4,7 +4,8 @@ import { ArrowLeft, GraduationCap, Upload } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import { useAuth } from '../../contexts/AuthContext'
-import api from '../../api/client'
+import api, { API_BASE_URL } from '../../api/client'
+import { usersApi } from '../../api/users'
 import type { User } from '../../api/types'
 
 export default function TeacherEditProfilePage() {
@@ -18,6 +19,13 @@ export default function TeacherEditProfilePage() {
   const [email, setEmail] = useState(user?.email || '')
   const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url || null)
   const [loading, setLoading] = useState(false)
+
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -43,7 +51,7 @@ export default function TeacherEditProfilePage() {
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/users/${user.id}/avatar`, {
+      const response = await fetch(`${API_BASE_URL}/users/${user.id}/avatar`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -60,6 +68,37 @@ export default function TeacherEditProfilePage() {
       alert('Не удалось загрузить аватар')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!user) return
+    setPasswordError('')
+    setPasswordSuccess('')
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Заполните все поля')
+      return
+    }
+    if (newPassword.length < 6) {
+      setPasswordError('Новый пароль должен быть не короче 6 символов')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Пароли не совпадают')
+      return
+    }
+    try {
+      setSavingPassword(true)
+      await usersApi.changePassword(user.id, currentPassword, newPassword)
+      setPasswordSuccess('Пароль изменён')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error: any) {
+      const msg = error?.message || ''
+      setPasswordError(msg.includes('incorrect') ? 'Текущий пароль неверный' : 'Не удалось изменить пароль')
+    } finally {
+      setSavingPassword(false)
     }
   }
 
@@ -151,6 +190,33 @@ export default function TeacherEditProfilePage() {
               <Button variant="outline" fullWidth>Отмена</Button>
             </Link>
             <Button fullWidth className="flex-1" onClick={handleSave}>Сохранить</Button>
+          </div>
+
+          <div className="border-t border-zinc-200 pt-8 flex flex-col gap-4">
+            <h2 className="text-base font-semibold text-zinc-900">Сменить пароль</h2>
+            <Input
+              label="Текущий пароль"
+              type="password"
+              value={currentPassword}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCurrentPassword(e.target.value)}
+            />
+            <Input
+              label="Новый пароль"
+              type="password"
+              value={newPassword}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
+            />
+            <Input
+              label="Повторите новый пароль"
+              type="password"
+              value={confirmPassword}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConfirmPassword(e.target.value)}
+            />
+            {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
+            {passwordSuccess && <p className="text-sm text-emerald-600">{passwordSuccess}</p>}
+            <Button variant="outline" fullWidth onClick={handleChangePassword} disabled={savingPassword}>
+              {savingPassword ? 'Сохранение...' : 'Изменить пароль'}
+            </Button>
           </div>
         </div>
       </div>
