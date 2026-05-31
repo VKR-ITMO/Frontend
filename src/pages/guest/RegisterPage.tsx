@@ -1,12 +1,45 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { GraduationCap } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import RoleToggle from '../../components/ui/RoleToggle'
+import { useAuth } from '../../contexts/AuthContext'
 
 export default function RegisterPage() {
   const [role, setRole] = useState('Студент')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+
+  const { register } = useAuth()
+  const navigate = useNavigate()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setIsLoading(true)
+
+    const fullName = `${firstName} ${lastName}`.trim()
+    const apiRole = role === 'Студент' ? 'STUDENT' : 'TEACHER'
+
+    try {
+      const success = await register(email, password, fullName, apiRole)
+      if (success) {
+        const redirectPath = apiRole === 'STUDENT' ? '/student' : '/teacher'
+        navigate(redirectPath)
+      } else {
+        setError('Ошибка регистрации. Возможно, email уже занят.')
+      }
+    } catch {
+      setError('Ошибка при регистрации. Попробуйте позже.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
     <div className="w-full max-w-md mx-auto flex flex-col items-center gap-8 p-4">
@@ -22,15 +55,39 @@ export default function RegisterPage() {
 
       <RoleToggle roles={['Студент', 'Преподаватель']} activeRole={role} onChange={setRole} />
 
-      <form className="flex flex-col gap-4 w-full">
+      <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit}>
         <div className="flex gap-4">
-          <Input label="Имя" placeholder="Иван" />
-          <Input label="Фамилия" placeholder="Петров" />
+          <Input 
+            label="Имя" 
+            placeholder="Иван" 
+            value={firstName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFirstName(e.target.value)}
+          />
+          <Input 
+            label="Фамилия" 
+            placeholder="Петров" 
+            value={lastName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)}
+          />
         </div>
-        {role === 'Студент' && <Input label="Группа" placeholder="P3255" />}
-        <Input label="Почта" type="email" placeholder="name@example.com" />
-        <Input label="Пароль" type="password" placeholder="••••••••" />
-        <Button fullWidth>Создать аккаунт</Button>
+        <Input 
+          label="Почта" 
+          type="email" 
+          placeholder="name@example.com" 
+          value={email}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
+        />
+        <Input 
+          label="Пароль" 
+          type="password" 
+          placeholder="••••••••" 
+          value={password}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
+        />
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <Button fullWidth disabled={isLoading}>
+          {isLoading ? 'Регистрация...' : 'Создать аккаунт'}
+        </Button>
       </form>
 
       <p className="text-sm text-zinc-400">
