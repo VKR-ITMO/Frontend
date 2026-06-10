@@ -514,15 +514,7 @@ export default function StudentLiveSessionPage() {
                   setOrderingAnswer={setOrderingAnswer}
                 />
               </div>
-              <div className="flex justify-between">
-                {quiz.currentQuestion > 0 && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion - 1 })}
-                  >
-                    Назад
-                  </Button>
-                )}
+              <div className="flex justify-end">
                 {quiz.currentQuestion < quiz.questions.length - 1 ? (
                   <Button
                     onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion + 1 })}
@@ -925,15 +917,15 @@ function MatchingQuestion({
   return (
     <div className="flex flex-col gap-3">
       {leftItems.map((leftText) => (
-        <div key={leftText} className="flex items-center gap-3">
-          <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-4 py-3">
+        <div key={leftText} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-3 py-2.5">
             <span className="text-sm font-semibold text-zinc-900">{leftText}</span>
           </div>
-          <div className="w-4 h-4 flex items-center justify-center">
+          <div className="hidden sm:flex w-4 h-4 items-center justify-center shrink-0">
             <span className="text-zinc-300">→</span>
           </div>
           <select
-            className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-4 py-3 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
+            className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-3 py-2.5 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
             value={pairs[leftText] || ''}
             onChange={(e) => onSetPair(leftText, e.target.value)}
           >
