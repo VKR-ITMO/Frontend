@@ -39,12 +39,27 @@ export default function StudentLiveSessionPage() {
   const [reactionCooldowns, setReactionCooldowns] = useState<Record<string, number>>({})
   const [nowTick, setNowTick] = useState(Date.now())
   const REACTION_COOLDOWN_MS = 5000
-  const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(new Set())
+  const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`sq_submitted_${sessionId}`)
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>()
+    } catch { return new Set<string>() }
+  })
   const [lastScore, setLastScore] = useState<number | null>(null)
   // Дедлайн текущего вопроса (timestamp в мс). null — вопрос без таймера
   const [questionDeadline, setQuestionDeadline] = useState<number | null>(null)
   // Флаг идущей отправки — защита от двойного сабмита (клик + таймер)
   const submittingRef = useRef(false)
+
+  // Сохраняем прогресс квиза (ответы, текущий вопрос) при каждом изменении
+  useEffect(() => {
+    if (!quiz || !sessionId) return
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { fileAnswers: _f, ...rest } = quiz
+      localStorage.setItem(`sq_progress_${sessionId}`, JSON.stringify(rest))
+    } catch { /* ignore */ }
+  }, [quiz, sessionId])
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -124,16 +139,25 @@ export default function StudentLiveSessionPage() {
               initialOrdering[q.id] = shuffle(q.answers.map((a) => a.id))
             }
           })
+          // Восстанавливаем сохранённый прогресс (если он есть для этого квиза)
+          let savedProgress: Partial<ActiveQuiz> = {}
+          try {
+            const stored = localStorage.getItem(`sq_progress_${sessionId}`)
+            if (stored) {
+              const parsed = JSON.parse(stored)
+              if (parsed.sessionQuizId === activeQuiz.session_quiz_id) savedProgress = parsed
+            }
+          } catch { /* ignore */ }
           setQuiz({
             sessionQuizId: activeQuiz.session_quiz_id,
             quizId: activeQuiz.quiz_id,
             title: activeQuiz.title || 'Квиз',
             questions: activeQuiz.questions,
-            currentQuestion: 0,
-            selectedAnswers: {},
-            textAnswers: {},
-            orderingAnswers: initialOrdering,
-            matchingAnswers: {},
+            currentQuestion: savedProgress.currentQuestion ?? 0,
+            selectedAnswers: savedProgress.selectedAnswers ?? {},
+            textAnswers: savedProgress.textAnswers ?? {},
+            orderingAnswers: savedProgress.orderingAnswers ?? initialOrdering,
+            matchingAnswers: savedProgress.matchingAnswers ?? {},
             fileAnswers: {},
           })
           setQuizResult(null)
@@ -318,9 +342,13 @@ export default function StudentLiveSessionPage() {
         }
       }
       setQuiz(null)
+      try { localStorage.removeItem(`sq_progress_${sessionId}`) } catch { /* ignore */ }
       setSubmittedQuizIds((prev) => {
         const next = new Set(prev)
         next.add(submittedId)
+        try {
+          localStorage.setItem(`sq_submitted_${sessionId}`, JSON.stringify([...next]))
+        } catch { /* ignore */ }
         return next
       })
     } catch (error: any) {
