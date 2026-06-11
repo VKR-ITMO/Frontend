@@ -59,7 +59,7 @@ export default function GradesDetailPage() {
     ? submissions.reduce((s, sub) => s + sub.score, 0) / submissions.length
     : 0
   const avgPct = maxScore > 0 ? Math.round((avgScore / maxScore) * 100) : 0
-  const passedCount = submissions.filter(s => maxScore > 0 ? s.score / maxScore >= 0.6 : false).length
+
 
   const currentSQ = sessionQuizzes.find(sq => sq.id === selectedId)
 
@@ -111,7 +111,7 @@ export default function GradesDetailPage() {
               <div className="bg-white border border-zinc-200 rounded-xl px-5 py-4">
                 <p className="text-xs text-zinc-400 mb-1">Сдали</p>
                 <p className="text-2xl font-semibold text-zinc-900">{submissions.length}</p>
-                <p className="text-xs text-zinc-400 mt-0.5">{passedCount} прошли ({submissions.length > 0 ? Math.round(passedCount / submissions.length * 100) : 0}%)</p>
+                <p className="text-xs text-zinc-400 mt-0.5">студентов</p>
               </div>
               <div className="bg-white border border-zinc-200 rounded-xl px-5 py-4">
                 <p className="text-xs text-zinc-400 mb-1">Средний балл</p>
@@ -136,21 +136,19 @@ export default function GradesDetailPage() {
               <div className="py-12 text-center text-zinc-400">Пока нет результатов</div>
             ) : (
               <>
-                <div className="grid grid-cols-[2rem_1fr_auto_auto_auto_auto] gap-4 px-6 py-3 border-b border-zinc-100 text-xs font-medium text-zinc-400 uppercase tracking-wider items-center">
+                <div className="grid grid-cols-[2rem_1fr_11rem_9rem_7rem] gap-4 px-6 py-3 border-b border-zinc-100 text-xs font-medium text-zinc-400 uppercase tracking-wider items-center">
                   <span>#</span>
                   <span>Студент</span>
                   <span className="text-right">Баллы</span>
-                  <span className="text-right w-24">Процент</span>
-                  <span>Статус</span>
+                  <span className="text-right">Процент</span>
                   <span></span>
                 </div>
                 {sorted.map((s, i) => {
                   const pct = maxScore > 0 ? Math.round((s.score / maxScore) * 100) : 0
-                  const passed = pct >= 60
                   return (
                     <div
                       key={s.id}
-                      className="grid grid-cols-[2rem_1fr_auto_auto_auto_auto] gap-4 px-6 py-4 border-b border-zinc-50 last:border-b-0 items-center hover:bg-zinc-50 transition-colors"
+                      className="grid grid-cols-[2rem_1fr_11rem_9rem_7rem] gap-4 px-6 py-4 border-b border-zinc-50 last:border-b-0 items-center hover:bg-zinc-50 transition-colors"
                     >
                       <span className="text-xs font-semibold text-zinc-400">{i + 1}</span>
                       <div className="flex items-center gap-3 min-w-0">
@@ -165,26 +163,23 @@ export default function GradesDetailPage() {
                       <span className="text-sm font-semibold text-zinc-900 text-right">
                         {s.score} <span className="text-zinc-400 font-normal">/ {maxScore} б.</span>
                       </span>
-                      <div className="w-24 flex flex-col items-end gap-1">
+                      <div className="flex flex-col items-end gap-1">
                         <span className="text-sm font-medium text-zinc-700">{pct}%</span>
                         <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${pct >= 60 ? 'bg-emerald-500' : 'bg-red-400'}`}
+                            className="h-full rounded-full bg-zinc-400"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
                       </div>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit whitespace-nowrap ${
-                        passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'
-                      }`}>
-                        {passed ? 'Сдал' : 'Не сдал'}
-                      </span>
-                      <button
-                        onClick={() => setDetailStudent(s)}
-                        className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 border border-zinc-200 hover:border-zinc-400 rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Ответы
-                      </button>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => setDetailStudent(s)}
+                          className="flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 border border-zinc-200 hover:border-zinc-400 rounded-lg px-3 py-1.5 transition-colors whitespace-nowrap"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Ответы
+                        </button>
+                      </div>
                     </div>
                   )
                 })}
@@ -214,12 +209,11 @@ export default function GradesDetailPage() {
 
 function StudentAnswersView({ submission, maxScore }: { submission: StudentSubmission; maxScore: number }) {
   const pct = maxScore > 0 ? Math.round((submission.score / maxScore) * 100) : 0
-  const passed = pct >= 60
 
   return (
     <div className="flex flex-col gap-5">
       {/* Score summary */}
-      <div className="flex items-center gap-4 bg-zinc-50 rounded-xl px-4 py-3">
+      <div className="flex items-center gap-6 bg-zinc-50 rounded-xl px-4 py-3">
         <div className="flex flex-col flex-1">
           <span className="text-xs text-zinc-400">Итоговый балл</span>
           <span className="text-xl font-semibold text-zinc-900">{submission.score} / {maxScore} б.</span>
@@ -228,9 +222,6 @@ function StudentAnswersView({ submission, maxScore }: { submission: StudentSubmi
           <span className="text-xs text-zinc-400">Процент</span>
           <span className="text-xl font-semibold text-zinc-900">{pct}%</span>
         </div>
-        <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${passed ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
-          {passed ? 'Сдал' : 'Не сдал'}
-        </span>
       </div>
 
       {/* Per-question answers */}
