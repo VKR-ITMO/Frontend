@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star, Check, X, Upload } from 'lucide-react'
+import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star, Check, X, Upload, ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import { reactionsApi } from '../../api/reactions'
 import { sessionsApi } from '../../api/sessions'
@@ -39,12 +39,27 @@ export default function StudentLiveSessionPage() {
   const [reactionCooldowns, setReactionCooldowns] = useState<Record<string, number>>({})
   const [nowTick, setNowTick] = useState(Date.now())
   const REACTION_COOLDOWN_MS = 5000
-  const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(new Set())
+  const [submittedQuizIds, setSubmittedQuizIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`sq_submitted_${sessionId}`)
+      return stored ? new Set<string>(JSON.parse(stored)) : new Set<string>()
+    } catch { return new Set<string>() }
+  })
   const [lastScore, setLastScore] = useState<number | null>(null)
   // Дедлайн текущего вопроса (timestamp в мс). null — вопрос без таймера
   const [questionDeadline, setQuestionDeadline] = useState<number | null>(null)
   // Флаг идущей отправки — защита от двойного сабмита (клик + таймер)
   const submittingRef = useRef(false)
+
+  // Сохраняем прогресс квиза (ответы, текущий вопрос) при каждом изменении
+  useEffect(() => {
+    if (!quiz || !sessionId) return
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { fileAnswers: _f, ...rest } = quiz
+      localStorage.setItem(`sq_progress_${sessionId}`, JSON.stringify(rest))
+    } catch { /* ignore */ }
+  }, [quiz, sessionId])
 
   const formatElapsed = useCallback((startTime: string) => {
     const start = new Date(startTime).getTime()
@@ -124,16 +139,25 @@ export default function StudentLiveSessionPage() {
               initialOrdering[q.id] = shuffle(q.answers.map((a) => a.id))
             }
           })
+          // Восстанавливаем сохранённый прогресс (если он есть для этого квиза)
+          let savedProgress: Partial<ActiveQuiz> = {}
+          try {
+            const stored = localStorage.getItem(`sq_progress_${sessionId}`)
+            if (stored) {
+              const parsed = JSON.parse(stored)
+              if (parsed.sessionQuizId === activeQuiz.session_quiz_id) savedProgress = parsed
+            }
+          } catch { /* ignore */ }
           setQuiz({
             sessionQuizId: activeQuiz.session_quiz_id,
             quizId: activeQuiz.quiz_id,
             title: activeQuiz.title || 'Квиз',
             questions: activeQuiz.questions,
-            currentQuestion: 0,
-            selectedAnswers: {},
-            textAnswers: {},
-            orderingAnswers: initialOrdering,
-            matchingAnswers: {},
+            currentQuestion: savedProgress.currentQuestion ?? 0,
+            selectedAnswers: savedProgress.selectedAnswers ?? {},
+            textAnswers: savedProgress.textAnswers ?? {},
+            orderingAnswers: savedProgress.orderingAnswers ?? initialOrdering,
+            matchingAnswers: savedProgress.matchingAnswers ?? {},
             fileAnswers: {},
           })
           setQuizResult(null)
@@ -318,9 +342,13 @@ export default function StudentLiveSessionPage() {
         }
       }
       setQuiz(null)
+      try { localStorage.removeItem(`sq_progress_${sessionId}`) } catch { /* ignore */ }
       setSubmittedQuizIds((prev) => {
         const next = new Set(prev)
         next.add(submittedId)
+        try {
+          localStorage.setItem(`sq_submitted_${sessionId}`, JSON.stringify([...next]))
+        } catch { /* ignore */ }
         return next
       })
     } catch (error: any) {
@@ -374,8 +402,8 @@ export default function StudentLiveSessionPage() {
   if (sessionEnded) {
     const totalParticipants = participantsList.length
     return (
-      <div className="min-h-screen flex items-center justify-center bg-zinc-50">
-        <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-10 max-w-md w-full text-center">
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 px-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-zinc-200 p-6 sm:p-10 max-w-md w-full text-center">
           <div className="w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center mx-auto mb-6">
             <Trophy className="w-8 h-8 text-white" />
           </div>
@@ -432,8 +460,8 @@ export default function StudentLiveSessionPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
-      <div className="border-b border-zinc-100 px-36 py-4 flex items-center justify-between">
-        <div className="flex flex-col gap-1 w-[216px]">
+      <div className="border-b border-zinc-100 px-4 md:px-36 py-4 flex items-center justify-between">
+        <div className="flex flex-col gap-1 flex-1 min-w-0 md:flex-none md:w-[216px]">
           <h1 className="text-sm font-semibold text-zinc-900 truncate">{session?.lecture?.name || 'Лекция'}</h1>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -452,7 +480,7 @@ export default function StudentLiveSessionPage() {
       </div>
 
       {/* Main content */}
-      <div className="px-36 py-8 flex gap-8">
+      <div className="px-4 md:px-36 py-4 md:py-8 flex flex-col md:flex-row gap-6 md:gap-8">
         {/* Left column */}
         <div className="flex-1 flex flex-col gap-8">
           {/* Current topic */}
@@ -496,7 +524,7 @@ export default function StudentLiveSessionPage() {
                 </div>
               )}
               {error && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
-              <div className="max-h-[calc(100vh-360px)] overflow-y-auto">
+              <div className="max-h-[55vh] md:max-h-[calc(100vh-360px)] overflow-y-auto">
                 <QuizQuestionView
                   question={currentQ}
                   selectedAnswers={quiz.selectedAnswers[currentQ.id] || []}
@@ -510,15 +538,7 @@ export default function StudentLiveSessionPage() {
                   setOrderingAnswer={setOrderingAnswer}
                 />
               </div>
-              <div className="flex justify-between">
-                {quiz.currentQuestion > 0 && (
-                  <Button
-                    variant="secondary"
-                    onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion - 1 })}
-                  >
-                    Назад
-                  </Button>
-                )}
+              <div className="flex justify-end">
                 {quiz.currentQuestion < quiz.questions.length - 1 ? (
                   <Button
                     onClick={() => setQuiz({ ...quiz, currentQuestion: quiz.currentQuestion + 1 })}
@@ -579,7 +599,7 @@ export default function StudentLiveSessionPage() {
         </div>
 
         {/* Right column - Top participants (real data) */}
-        <div className="w-[398px] flex flex-col gap-5">
+        <div className="w-full md:w-[398px] flex flex-col gap-5">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-900">Участники ({participantsList.length})</h3>
           </div>
@@ -733,7 +753,7 @@ function QuizQuestionView({
   const qType = question.type
 
   return (
-    <div className="bg-zinc-50 rounded-lg p-8 flex flex-col gap-8">
+    <div className="bg-zinc-50 rounded-lg p-4 sm:p-8 flex flex-col gap-4 sm:gap-8">
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium text-zinc-400">Вопрос {question.timer ? `· ${question.timer}с` : ''}</span>
         <h2 className="text-base font-semibold text-zinc-900">{question.text}</h2>
@@ -825,7 +845,7 @@ function QuizQuestionView({
       {qType === 'FILE' && (
         <div className="flex flex-col gap-2">
           <div
-            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 transition-colors ${
+            className={`border-2 border-dashed rounded-xl p-4 sm:p-8 flex flex-col items-center justify-center gap-3 transition-colors ${
               quiz.fileAnswers[question.id]
                 ? 'border-zinc-900 bg-zinc-50'
                 : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300'
@@ -942,6 +962,19 @@ function OrderingQuestion({
     setOverIndex(null)
   }
 
+  const moveUp = (idx: number) => {
+    if (idx === 0) return
+    const next = [...effectiveOrder]
+    ;[next[idx - 1], next[idx]] = [next[idx], next[idx - 1]]
+    onReorder(next)
+  }
+  const moveDown = (idx: number) => {
+    if (idx === effectiveOrder.length - 1) return
+    const next = [...effectiveOrder]
+    ;[next[idx], next[idx + 1]] = [next[idx + 1], next[idx]]
+    onReorder(next)
+  }
+
   return (
     <div className="flex flex-col gap-2.5">
       {effectiveOrder.map((id, idx) => (
@@ -960,10 +993,27 @@ function OrderingQuestion({
             <span className="text-xs font-bold text-white">{idx + 1}</span>
           </div>
           <span className="text-sm font-medium text-zinc-800 flex-1">{textById.get(id) ?? id}</span>
-          <GripVertical className="w-4 h-4 text-zinc-300 shrink-0" />
+          <div className="flex flex-col gap-0.5 md:hidden shrink-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); moveUp(idx) }}
+              disabled={idx === 0}
+              className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 p-0.5"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); moveDown(idx) }}
+              disabled={idx === effectiveOrder.length - 1}
+              className="text-zinc-400 hover:text-zinc-700 disabled:opacity-30 p-0.5"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+          </div>
+          <GripVertical className="w-4 h-4 text-zinc-300 shrink-0 hidden md:block" />
         </div>
       ))}
-      <p className="text-xs text-zinc-400 text-center mt-1">Перетащите элементы в правильном порядке</p>
+      <p className="text-xs text-zinc-400 text-center mt-1 hidden md:block">Перетащите элементы в правильном порядке</p>
+      <p className="text-xs text-zinc-400 text-center mt-1 md:hidden">Нажимайте стрелки для изменения порядка</p>
     </div>
   )
 }
@@ -988,15 +1038,15 @@ function MatchingQuestion({
   return (
     <div className="flex flex-col gap-3">
       {leftItems.map((leftText) => (
-        <div key={leftText} className="flex items-center gap-3">
-          <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-4 py-3">
+        <div key={leftText} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+          <div className="flex-1 bg-zinc-100 border border-zinc-200 rounded-lg px-3 py-2.5">
             <span className="text-sm font-semibold text-zinc-900">{leftText}</span>
           </div>
-          <div className="w-4 h-4 flex items-center justify-center">
+          <div className="hidden sm:flex w-4 h-4 items-center justify-center shrink-0">
             <span className="text-zinc-300">→</span>
           </div>
           <select
-            className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-4 py-3 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
+            className="flex-1 bg-white border-2 border-zinc-200 rounded-lg px-3 py-2.5 text-sm text-zinc-800 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 focus:border-zinc-400"
             value={pairs[leftText] || ''}
             onChange={(e) => onSetPair(leftText, e.target.value)}
           >
