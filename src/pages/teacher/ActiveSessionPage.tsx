@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Flame, HandMetal, Download } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Download } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -136,6 +136,26 @@ export default function ActiveSessionPage() {
     }
     loadQuizzes()
   }, [])
+
+  // Восстанавливаем список запущенных квизов из localStorage при загрузке сессии
+  useEffect(() => {
+    if (!session) return
+    try {
+      const stored = localStorage.getItem(`session_quizzes_${session.id}`)
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (Array.isArray(parsed) && parsed.length > 0) setLaunchedQuizzes(parsed)
+      }
+    } catch { /* ignore */ }
+  }, [session?.id])
+
+  // Синхронизируем список запущенных квизов в localStorage при каждом изменении
+  useEffect(() => {
+    if (!session || launchedQuizzes.length === 0) return
+    try {
+      localStorage.setItem(`session_quizzes_${session.id}`, JSON.stringify(launchedQuizzes))
+    } catch { /* ignore */ }
+  }, [launchedQuizzes, session])
 
   // Poll for active quiz data (questions) 
   useEffect(() => {
@@ -487,8 +507,6 @@ export default function ActiveSessionPage() {
     { key: 'CONFUSED', name: 'Непонятно', icon: <HelpCircle className="w-5 h-5" />, count: reactions.CONFUSED },
     { key: 'THINKING', name: 'Интересно', icon: <Lightbulb className="w-5 h-5" />, count: reactions.THINKING },
     { key: 'HEART', name: 'Нравится', icon: <Heart className="w-5 h-5" />, count: reactions.HEART },
-    { key: 'FIRE', name: 'Огонь', icon: <Flame className="w-5 h-5" />, count: reactions.FIRE },
-    { key: 'CLAP', name: 'Круто', icon: <HandMetal className="w-5 h-5" />, count: reactions.CLAP },
   ]
 
   const activeQuiz = launchedQuizzes.find(q => !q.ended_at)
