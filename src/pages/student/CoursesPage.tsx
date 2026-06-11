@@ -1,59 +1,66 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import CourseCard from '../../components/ui/CourseCard'
+import { coursesApi } from '../../api/courses'
+import type { Course } from '../../api/types'
 
 export default function StudentCoursesPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('Все')
+  const [courses, setCourses] = useState<Course[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const filters = ['Все', 'Активные', 'Завершенные']
 
-  const courses = [
-    {
-      id: 1,
-      title: 'Введение в программирование',
-      description: 'Основы программирования на Python для начинающих',
-      teacher: 'Иван Петров',
-      nextLecture: 'Следующая лекция: Пн, 10:00',
-    },
-    {
-      id: 2,
-      title: 'Базы данных',
-      description: 'Проектирование и управление базами данных',
-      teacher: 'Мария Сидорова',
-      nextLecture: 'Следующая лекция: Вт, 14:00',
-    },
-    {
-      id: 3,
-      title: 'Алгоритмы',
-      description: 'Структуры данных и алгоритмы',
-      teacher: 'Алексей Козлов',
-      nextLecture: 'Следующая лекция: Ср, 12:00',
-    },
-    {
-      id: 4,
-      title: 'Физра',
-      description: 'Физическая культура и спорт',
-      teacher: 'Петр Смирнов',
-      nextLecture: 'Следующая лекция: Чт, 16:00',
-    },
-    {
-      id: 5,
-      title: 'Машинное обучение',
-      description: 'Введение в ML и нейронные сети',
-      teacher: 'Елена Иванова',
-      nextLecture: 'Следующая лекция: Пт, 10:00',
-    },
-    {
-      id: 6,
-      title: 'Веб-разработка',
-      description: 'Полный стек веб-разработки',
-      teacher: 'Дмитрий Волков',
-      nextLecture: 'Следующая лекция: Сб, 09:00',
-    },
-  ]
+  useEffect(() => {
+    loadCourses()
+    
+    // Restore scroll position on mount
+    const savedScroll = localStorage.getItem('coursesPageScroll')
+    if (savedScroll && containerRef.current) {
+      containerRef.current.scrollTop = parseInt(savedScroll)
+    }
+  }, [])
+
+  useEffect(() => {
+    // Save scroll position on unmount
+    const handleScroll = () => {
+      if (containerRef.current) {
+        localStorage.setItem('coursesPageScroll', containerRef.current.scrollTop.toString())
+      }
+    }
+
+    const container = containerRef.current
+    if (container) {
+      container.addEventListener('scroll', handleScroll)
+      return () => container.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
+  const loadCourses = async () => {
+    try {
+      setLoading(true)
+      const data = await coursesApi.getCourses()
+      setCourses(data)
+    } catch (err) {
+      setError('Ошибка загрузки курсов')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredCourses = courses.filter(course => {
+    const matchesSearch = course.name.toLowerCase().includes(search.toLowerCase())
+    const matchesFilter = filter === 'Все' || 
+      (filter === 'Активные' && course.status === 'ACTIVE') ||
+      (filter === 'Завершенные' && course.status === 'ARCHIVED')
+    return matchesSearch && matchesFilter
+  })
 
   return (
-    <div className="flex flex-col gap-8 p-8">
+    <div ref={containerRef} className="flex flex-col gap-8 p-8 overflow-auto" style={{ maxHeight: 'calc(100vh - 64px)' }}>
       <div>
         <h1 className="text-3xl font-bold text-zinc-900 tracking-tight">Мои курсы</h1>
         <p className="text-base text-zinc-500 mt-1">Все курсы, на которые вы записаны</p>
@@ -84,18 +91,28 @@ export default function StudentCoursesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
-        {courses.map((course) => (
-          <CourseCard
-            key={course.id}
-            title={course.title}
-            description={course.description}
-            teacher={course.teacher}
-            nextLecture={course.nextLecture}
-            linkTo={`/student/courses/${course.id}`}
-          />
-        ))}
-      </div>
+      {loading ? (
+        <div className="text-center py-12 text-zinc-500">Загрузка...</div>
+      ) : error ? (
+        <div className="text-center py-12 text-red-500">{error}</div>
+      ) : filteredCourses.length === 0 ? (
+        <div className="text-center py-12 text-zinc-500">
+          {courses.length === 0 ? 'Вы пока не записаны ни на один курс' : 'Курсы не найдены'}
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-6">
+          {filteredCourses.map((course) => (
+            <CourseCard
+              key={course.id}
+              title={course.name}
+              description={course.description || ''}
+              teacher=""
+              linkTo={`/student/courses/${course.id}`}
+              imageUrl={course.image_url ? `${import.meta.env.VITE_API_URL.replace('/api/v1', '')}${course.image_url}` : undefined}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

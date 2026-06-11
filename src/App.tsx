@@ -10,6 +10,7 @@ import LoginPage from './pages/guest/LoginPage'
 import RegisterPage from './pages/guest/RegisterPage'
 import ForgotPasswordPage from './pages/guest/ForgotPasswordPage'
 import JoinSessionPage from './pages/guest/JoinSessionPage'
+import GuestNamePage from './pages/guest/GuestNamePage'
 
 import StudentDashboardPage from './pages/student/DashboardPage'
 import StudentCoursesPage from './pages/student/CoursesPage'
@@ -17,7 +18,6 @@ import StudentCourseDetailPage from './pages/student/CourseDetailPage'
 import StudentProfilePage from './pages/student/ProfilePage'
 import StudentEditProfilePage from './pages/student/EditProfilePage'
 import LectureWaitingPage from './pages/student/LectureWaitingPage'
-import LectureLivePage from './pages/student/LectureLivePage'
 import LectureResultsPage from './pages/student/LectureResultsPage'
 
 import TeacherDashboardPage from './pages/teacher/DashboardPage'
@@ -46,6 +46,7 @@ export default function App() {
       </Route>
 
       <Route path="/join" element={<JoinSessionPage />} />
+      <Route path="/join/name" element={<GuestNamePage />} />
       <Route path="/session/:sessionId/live" element={<StudentLiveSessionPage />} />
 
       <Route path="/student" element={<StudentLayout />}>
@@ -53,7 +54,6 @@ export default function App() {
         <Route path="courses" element={<StudentCoursesPage />} />
         <Route path="courses/:courseId" element={<StudentCourseDetailPage />} />
         <Route path="courses/:courseId/lecture/waiting" element={<LectureWaitingPage />} />
-        <Route path="courses/:courseId/lecture/live" element={<LectureLivePage />} />
         <Route path="courses/:courseId/lecture/results" element={<LectureResultsPage />} />
         <Route path="profile" element={<StudentProfilePage />} />
         <Route path="profile/edit" element={<StudentEditProfilePage />} />

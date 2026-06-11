@@ -13,7 +13,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   
-  const { login, user } = useAuth()
+  const { login } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,14 +21,11 @@ export default function LoginPage() {
     setError('')
     setIsLoading(true)
 
-    const success = await login(email, password)
+    const loggedInUser = await login(email, password)
     setIsLoading(false)
 
-    if (success && user) {
-      navigate(getRedirectPath(user.role))
-    } else if (success) {
-      const roleMap: Record<string, string> = { 'Студент': '/student', 'Преподаватель': '/teacher' }
-      navigate(roleMap[role] || '/student')
+    if (loggedInUser) {
+      navigate(getRedirectPath(loggedInUser.role))
     } else {
       setError('Неверный email или пароль')
     }

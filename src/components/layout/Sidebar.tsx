@@ -1,11 +1,12 @@
 import { Link, useLocation } from 'react-router-dom'
-import { GraduationCap, Home, BookOpen, User, QrCode, LayoutDashboard, Radio, ChevronLeft } from 'lucide-react'
+import { GraduationCap, Home, BookOpen, User, KeyRound, LayoutDashboard, Radio, ChevronLeft } from 'lucide-react'
 import { useState } from 'react'
 
 export interface SidebarItem {
   label: string
   icon: React.ReactNode
   path: string
+  exact?: boolean
 }
 
 interface SidebarProps {
@@ -18,6 +19,14 @@ interface SidebarProps {
 export default function Sidebar({ items, userName, userRole, userAvatar }: SidebarProps) {
   const location = useLocation()
   const [collapsed, setCollapsed] = useState(false)
+
+  const isItemActive = (item: SidebarItem) => {
+    if (item.exact) {
+      return location.pathname === item.path
+    }
+    return location.pathname === item.path ||
+      (item.path !== '/' && location.pathname.startsWith(item.path + '/'))
+  }
 
   return (
     <aside
@@ -45,8 +54,7 @@ export default function Sidebar({ items, userName, userRole, userAvatar }: Sideb
         <div className="border-t border-zinc-100" />
         <nav className="flex flex-col gap-1 pt-2 px-4">
           {items.map((item) => {
-            const isActive = location.pathname === item.path ||
-              (item.path !== '/' && location.pathname.startsWith(item.path))
+            const isActive = isItemActive(item)
             return (
               <Link
                 key={item.path}
@@ -86,14 +94,14 @@ export default function Sidebar({ items, userName, userRole, userAvatar }: Sideb
 }
 
 export const studentNavItems: SidebarItem[] = [
-  { label: 'Главная', icon: <Home className="w-5 h-5" />, path: '/student' },
+  { label: 'Главная', icon: <Home className="w-5 h-5" />, path: '/student', exact: true },
   { label: 'Курсы', icon: <BookOpen className="w-5 h-5" />, path: '/student/courses' },
   { label: 'Профиль', icon: <User className="w-5 h-5" />, path: '/student/profile' },
-  { label: 'Войти по QR-коду', icon: <QrCode className="w-5 h-5" />, path: '/student/qr' },
+  { label: 'Войти по коду', icon: <KeyRound className="w-5 h-5" />, path: '/join' },
 ]
 
 export const teacherNavItems: SidebarItem[] = [
-  { label: 'Дашборд', icon: <LayoutDashboard className="w-5 h-5" />, path: '/teacher' },
+  { label: 'Дашборд', icon: <LayoutDashboard className="w-5 h-5" />, path: '/teacher', exact: true },
   { label: 'Курсы', icon: <BookOpen className="w-5 h-5" />, path: '/teacher/courses' },
   { label: 'Профиль', icon: <User className="w-5 h-5" />, path: '/teacher/profile' },
   { label: 'Live-сессия', icon: <Radio className="w-5 h-5" />, path: '/teacher/live' },

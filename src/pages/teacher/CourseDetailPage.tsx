@@ -1,10 +1,17 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, QrCode, Settings, Pencil, Trash2, Download } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, QrCode, Pencil, Trash2, Download, Copy, Check } from 'lucide-react'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Modal from '../../components/ui/Modal'
 import Tabs from '../../components/ui/Tabs'
+import { coursesApi } from '../../api/courses'
+import { lecturesApi } from '../../api/lectures'
+import { quizzesApi } from '../../api/quizzes'
+import { sessionsApi } from '../../api/sessions'
+import { materialsApi, type Material } from '../../api/materials'
+import { useAuth } from '../../contexts/AuthContext'
+import type { Course, Lecture, Quiz, User, LectureCreate } from '../../api/types'
 
 const courseTabs = [
   { key: 'lectures', label: 'Лекции' },
@@ -15,38 +22,26 @@ const courseTabs = [
   { key: 'settings', label: 'Настройки' },
 ]
 
-const lectures = [
-  { id: 1, title: 'Введение в алгоритмы', date: '15', month: 'янв', time: '10:00', limit: 50, code: 'ALG101' },
-  { id: 2, title: 'Введение в алгоритмы', date: '15', month: 'янв', time: '10:00', limit: 50, code: 'ALG101' },
-  { id: 3, title: 'Введение в алгоритмы', date: '15', month: 'янв', time: '10:00', limit: 50, code: 'ALG101' },
-]
-
-const quizzes = [
-  { id: 1, title: 'Квиз', questions: 5, points: 50 },
-  { id: 2, title: 'Квиз', questions: 5, points: 50 },
-  { id: 3, title: 'Квиз', questions: 5, points: 50 },
-]
-
-const materials = [
-  { id: 1, title: 'Дополнительные материалы', date: '12.01.2024' },
-  { id: 2, title: 'Дополнительные материалы', date: '12.01.2024' },
-  { id: 3, title: 'Дополнительные материалы', date: '12.01.2024' },
-]
-
-const members = [
-  { id: 1, name: 'Иванов Иван', email: 'ivanov@example.com', attendance: '95%', points: 87 },
-  { id: 2, name: 'Иванов Иван', email: 'ivanov@example.com', attendance: '95%', points: 87 },
-  { id: 3, name: 'Иванов Иван', email: 'ivanov@example.com', attendance: '95%', points: 87 },
-]
-
-const gradeItems = [
-  { id: 1, title: 'Введение', submitted: '3 / 3 сдали', questions: 5 },
-  { id: 2, title: 'Введение', submitted: '3 / 3 сдали', questions: 5 },
-  { id: 3, title: 'Введение', submitted: '3 / 3 сдали', questions: 5 },
-]
 
 export default function TeacherCourseDetailPage() {
+  const { courseId } = useParams<{ courseId: string }>()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  
+  const [course, setCourse] = useState<Course | null>(null)
+  const [lectures, setLectures] = useState<Lecture[]>([])
+  const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const [members, setMembers] = useState<User[]>([])
+  const [materials, setMaterials] = useState<Material[]>([])
+  const [lectureError, setLectureError] = useState('')
+  const [startError, setStartError] = useState('')
+  const [materialName, setMaterialName] = useState('')
+  const [materialUrl, setMaterialUrl] = useState('')
+  const [materialDesc, setMaterialDesc] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
+  
   const [tab, setTab] = useState('lectures')
   const [filter, setFilter] = useState('Все')
 
@@ -54,12 +49,251 @@ export default function TeacherCourseDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteCourseOpen, setDeleteCourseOpen] = useState(false)
   const [startOpen, setStartOpen] = useState(false)
   const [addLectureOpen, setAddLectureOpen] = useState(false)
   const [createQuizOpen, setCreateQuizOpen] = useState(false)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [addMaterialOpen, setAddMaterialOpen] = useState(false)
+  
+  const [selectedLecture, setSelectedLecture] = useState<Lecture | null>(null)
+  const [copied, setCopied] = useState(false)
+  
+  const [newLecture, setNewLecture] = useState<LectureCreate>({
+    name: '',
+    topic: '',
+    description: '',
+    scheduled_at: '',
+    max_participants: 50
+  })
+  const [lectureDate, setLectureDate] = useState('')
+  const [lectureTime, setLectureTime] = useState('')
+  
+  const [newQuizTitle, setNewQuizTitle] = useState('')
+  const [courseSettings, setCourseSettings] = useState({ name: '', description: '' })
 
-  const filters = ['Все', 'Опубликованные', 'Отменённые']
+  const filters = ['Все', 'Опубликованные', 'Черновики']
+
+  useEffect(() => {
+    if (courseId) loadCourseData()
+  }, [courseId])
+
+  const loadCourseData = async () => {
+    if (!courseId) return
+    try {
+      setLoading(true)
+      const [courseData, lecturesData, quizzesData, studentsData, materialsData] = await Promise.all([
+        coursesApi.getCourse(courseId),
+        lecturesApi.getCourseLectures(courseId),
+        quizzesApi.getQuizzes(),
+        coursesApi.getCourseStudents(courseId).catch(() => []),
+        materialsApi.getMaterials(courseId).catch(() => [])
+      ])
+      setCourse(courseData)
+      setLectures(lecturesData)
+      setQuizzes(quizzesData.filter(q => q.course_id === courseId))
+      setMembers(studentsData)
+      setMaterials(materialsData)
+      setCourseSettings({ name: courseData.name, description: courseData.description || '' })
+    } catch (error) {
+      console.error('Failed to load course data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateLecture = async () => {
+    if (!courseId || !newLecture.name || !newLecture.topic) {
+      setLectureError('Заполните название и тему')
+      return
+    }
+    setLectureError('')
+    try {
+      const scheduled_at = lectureDate && lectureTime 
+        ? new Date(`${lectureDate}T${lectureTime}`).toISOString()
+        : undefined
+      const payload: Record<string, unknown> = {
+        name: newLecture.name,
+        topic: newLecture.topic,
+        max_participants: newLecture.max_participants || 50,
+      }
+      if (newLecture.description) payload.description = newLecture.description
+      if (scheduled_at) payload.scheduled_at = scheduled_at
+      await lecturesApi.createLecture(courseId, payload as unknown as LectureCreate)
+      setAddLectureOpen(false)
+      setNewLecture({ name: '', topic: '', description: '', scheduled_at: '', max_participants: 50 })
+      setLectureDate('')
+      setLectureTime('')
+      loadCourseData()
+    } catch (error: any) {
+      console.error('Failed to create lecture:', error)
+      setLectureError(error?.message || 'Не удалось создать лекцию')
+    }
+  }
+
+  const handleCreateMaterial = async () => {
+    if (!courseId || !materialName) return
+    try {
+      await materialsApi.createMaterial(courseId, {
+        name: materialName,
+        description: materialDesc || undefined,
+        url: materialUrl || undefined,
+      })
+      setAddMaterialOpen(false)
+      setMaterialName('')
+      setMaterialUrl('')
+      setMaterialDesc('')
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to create material:', error)
+    }
+  }
+
+  const handleDeleteMaterial = async (materialId: string) => {
+    if (!courseId) return
+    try {
+      await materialsApi.deleteMaterial(courseId, materialId)
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to delete material:', error)
+    }
+  }
+
+  const handleDeleteLecture = async () => {
+    if (!selectedLecture) return
+    try {
+      await lecturesApi.deleteLecture(selectedLecture.id)
+      setDeleteOpen(false)
+      setSelectedLecture(null)
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to delete lecture:', error)
+    }
+  }
+
+  const handleStartSession = async () => {
+    if (!selectedLecture) return
+    setStartError('')
+    try {
+      if (selectedLecture.status !== 'PUBLISHED') {
+        await lecturesApi.publishLecture(selectedLecture.id)
+      }
+      const session = await sessionsApi.startSession(selectedLecture.id)
+      setStartOpen(false)
+      navigate('/teacher/live/active', { state: { session } })
+    } catch (error: any) {
+      console.error('Failed to start session:', error)
+      const errorMsg = error?.message || 'Не удалось начать лекцию'
+      if (errorMsg.includes('already have an active session')) {
+        setStartError('У вас уже есть активная сессия. Сначала завершите её.')
+      } else if (errorMsg.includes('not found')) {
+        setStartError('Лекция не найдена.')
+      } else if (errorMsg.includes('Only teachers')) {
+        setStartError('Только преподаватели могут начинать лекции.')
+      } else if (errorMsg.includes('own lectures')) {
+        setStartError('Вы можете начинать только свои лекции.')
+      } else {
+        setStartError(errorMsg)
+      }
+    }
+  }
+
+  const handleCreateQuiz = async () => {
+    if (!newQuizTitle || !courseId) return
+    try {
+      const quiz = await quizzesApi.createQuiz({ title: newQuizTitle, course_id: courseId })
+      setCreateQuizOpen(false)
+      setNewQuizTitle('')
+      navigate(`/teacher/courses/${courseId}/quiz/${quiz.id}`)
+    } catch (error) {
+      console.error('Failed to create quiz:', error)
+    }
+  }
+
+  const handleDeleteQuiz = async (quizId: string) => {
+    try {
+      await quizzesApi.deleteQuiz(quizId)
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to delete quiz:', error)
+    }
+  }
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !courseId) return
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string)
+    }
+    reader.readAsDataURL(file)
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/courses/${courseId}/image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+        },
+        body: formData,
+      })
+
+      if (!response.ok) throw new Error('Upload failed')
+
+      loadCourseData()
+      setImagePreview(null)
+    } catch (error) {
+      console.error('Course image upload failed:', error)
+      setImagePreview(null)
+      alert('Не удалось загрузить изображение курса')
+    }
+  }
+
+  const handleSaveCourseSettings = async () => {
+    if (!courseId) return
+    try {
+      await coursesApi.updateCourse(courseId, courseSettings)
+      loadCourseData()
+    } catch (error) {
+      console.error('Failed to update course:', error)
+    }
+  }
+
+  const handleDeleteCourse = async () => {
+    if (!courseId) return
+    try {
+      await coursesApi.deleteCourse(courseId)
+      navigate('/teacher/courses')
+    } catch (error) {
+      console.error('Failed to delete course:', error)
+    }
+  }
+
+  const copyInviteLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/student/courses/${courseId}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const formatDate = (dateStr: string | null | undefined) => {
+    if (!dateStr) return { date: '--', month: '---', time: '--:--' }
+    const d = new Date(dateStr)
+    const months = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
+    return { date: d.getDate().toString(), month: months[d.getMonth()], time: d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) }
+  }
+
+  const filteredLectures = lectures.filter(lec => {
+    if (filter === 'Все') return true
+    if (filter === 'Опубликованные') return lec.status === 'PUBLISHED'
+    if (filter === 'Черновики') return lec.status === 'DRAFT'
+    return true
+  })
+
+  if (loading) return <div className="flex items-center justify-center min-h-screen"><p className="text-zinc-500">Загрузка...</p></div>
+  if (!course) return <div className="flex items-center justify-center min-h-screen"><p className="text-zinc-500">Курс не найден</p></div>
 
   return (
     <div className="flex flex-col gap-8 p-8 bg-gray-50 min-h-screen">
@@ -68,10 +302,10 @@ export default function TeacherCourseDetailPage() {
       </Link>
 
       <div className="bg-gradient-to-r from-zinc-900 to-zinc-500 rounded-xl p-8 flex flex-col gap-2 justify-end h-72">
-        <h1 className="text-3xl font-bold text-white">Основы программирования на Python</h1>
+        <h1 className="text-3xl font-bold text-white">{course.name}</h1>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-zinc-600 border-2 border-white" />
-          <span className="text-sm text-white">Иванов Иван Иванович</span>
+          <span className="text-sm text-white">{user?.full_name || 'Преподаватель'}</span>
         </div>
       </div>
 
@@ -91,29 +325,33 @@ export default function TeacherCourseDetailPage() {
                 <Button onClick={() => setAddLectureOpen(true)}>+ Добавить лекцию</Button>
               </div>
             </div>
-            {lectures.map((lec) => (
-              <div key={lec.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
-                <div className="flex items-center gap-5">
-                  <div className="w-10 h-10 bg-zinc-100 rounded flex flex-col items-center justify-center text-xs text-zinc-400">
-                    <span>{lec.date}</span><span>{lec.month}</span>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-zinc-900">{lec.title}</span>
-                    <div className="flex gap-4 text-xs text-zinc-400">
-                      <span>{lec.time}</span><span>Лимит: {lec.limit} чел.</span>
+            {filteredLectures.length === 0 ? (
+              <p className="text-center py-8 text-zinc-500">Нет лекций</p>
+            ) : filteredLectures.map((lec) => {
+              const { date, month, time } = formatDate(lec.scheduled_at)
+              return (
+                <div key={lec.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-5">
+                    <div className="w-10 h-10 bg-zinc-100 rounded flex flex-col items-center justify-center text-xs text-zinc-400">
+                      <span>{date}</span><span>{month}</span>
                     </div>
-                    <div className="text-xs text-zinc-400">Код доступа: <span className="font-bold text-zinc-600">{lec.code}</span></div>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-zinc-900">{lec.name}</span>
+                      <div className="flex gap-4 text-xs text-zinc-400">
+                        <span>{time}</span><span>Лимит: {lec.max_participants || 50} чел.</span>
+                      </div>
+                      {lec.access_code && <div className="text-xs text-zinc-400">Код доступа: <span className="font-bold text-zinc-600">{lec.access_code}</span></div>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-5">
+                    {lec.access_code && <button onClick={() => { setSelectedLecture(lec); setQrOpen(true) }} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><QrCode className="w-4 h-4 text-zinc-500" /></button>}
+                    <button onClick={() => { setSelectedLecture(lec); setEditOpen(true) }} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Pencil className="w-4 h-4 text-zinc-500" /></button>
+                    <button onClick={() => { setSelectedLecture(lec); setDeleteOpen(true) }} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
+                    <Button size="sm" onClick={() => { setSelectedLecture(lec); setStartOpen(true) }}>Начать</Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-5">
-                  <button onClick={() => setQrOpen(true)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><QrCode className="w-4 h-4 text-zinc-500" /></button>
-                  <button onClick={() => setSettingsOpen(true)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Settings className="w-4 h-4 text-zinc-500" /></button>
-                  <button onClick={() => setEditOpen(true)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Pencil className="w-4 h-4 text-zinc-500" /></button>
-                  <button onClick={() => setDeleteOpen(true)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
-                  <Button size="sm" onClick={() => setStartOpen(true)}>Начать</Button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -123,17 +361,17 @@ export default function TeacherCourseDetailPage() {
               <h2 className="text-lg font-semibold text-gray-900">Список квизов</h2>
               <Button onClick={() => setCreateQuizOpen(true)}>+ Создать квиз</Button>
             </div>
-            {quizzes.map((q) => (
+            {quizzes.length === 0 ? (
+              <p className="text-center py-8 text-zinc-500">Нет квизов</p>
+            ) : quizzes.map((q) => (
               <div key={q.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-zinc-900">{q.title}</span>
-                  <div className="flex gap-4 text-xs text-zinc-400">
-                    <span>{q.questions} вопросов</span><span>{q.points} баллов</span>
-                  </div>
+                  <span className="text-xs text-zinc-400">{q.description || 'Без описания'}</span>
                 </div>
                 <div className="flex items-center gap-5">
-                  <Link to={`/teacher/courses/1/quiz/${q.id}`}><button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Pencil className="w-4 h-4 text-zinc-500" /></button></Link>
-                  <button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
+                  <Link to={`/teacher/courses/${courseId}/quiz/${q.id}`}><button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Pencil className="w-4 h-4 text-zinc-500" /></button></Link>
+                  <button onClick={() => handleDeleteQuiz(q.id)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
                 </div>
               </div>
             ))}
@@ -144,17 +382,19 @@ export default function TeacherCourseDetailPage() {
           <div className="flex flex-col gap-6 p-8">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Материалы курса</h2>
-              <Button>+ Добавить материал</Button>
+              <Button onClick={() => setAddMaterialOpen(true)}>+ Добавить материал</Button>
             </div>
-            {materials.map((m) => (
+            {materials.length === 0 ? (
+              <p className="text-center py-8 text-zinc-500">Нет материалов</p>
+            ) : materials.map((m) => (
               <div key={m.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-zinc-900">{m.title}</span>
-                  <span className="text-xs text-zinc-400">{m.date}</span>
+                  <span className="text-sm font-medium text-zinc-900">{m.name}</span>
+                  <span className="text-xs text-zinc-400">{m.description || ''}{m.file_size ? ` • ${m.file_size}` : ''}</span>
                 </div>
                 <div className="flex items-center gap-5">
-                  <button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Download className="w-4 h-4 text-zinc-500" /></button>
-                  <button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
+                  {m.url && <a href={m.url} target="_blank" rel="noopener noreferrer" className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Download className="w-4 h-4 text-zinc-500" /></a>}
+                  <button onClick={() => handleDeleteMaterial(m.id)} className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
                 </div>
               </div>
             ))}
@@ -164,24 +404,24 @@ export default function TeacherCourseDetailPage() {
         {tab === 'members' && (
           <div className="flex flex-col gap-6 p-8">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900">Состав</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Состав ({members.length})</h2>
               <Button onClick={() => setInviteOpen(true)}>Инвайт ссылка</Button>
             </div>
-            {members.map((m) => (
+            {members.length === 0 ? (
+              <p className="text-center py-8 text-zinc-500">Нет студентов</p>
+            ) : members.map((m) => (
               <div key={m.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-full bg-zinc-200" />
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-sm font-medium text-zinc-900">{m.name}</span>
-                      <span className="text-xs text-zinc-400">{m.email}</span>
-                    </div>
-                    <div className="flex gap-4 text-xs text-zinc-400">
-                      <span>Посещаемость: {m.attendance}</span><span>Баллы: {m.points}</span>
-                    </div>
+                  {m.avatar_url ? (
+                    <img src={m.avatar_url} alt={m.full_name} className="w-12 h-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-zinc-200" />
+                  )}
+                  <div className="flex flex-col gap-1">
+                    <span className="text-sm font-medium text-zinc-900">{m.full_name}</span>
+                    <span className="text-xs text-zinc-400">{m.email}</span>
                   </div>
                 </div>
-                <button className="p-1 hover:bg-zinc-100 rounded-full transition-colors"><Trash2 className="w-4 h-4 text-zinc-500" /></button>
               </div>
             ))}
           </div>
@@ -190,15 +430,14 @@ export default function TeacherCourseDetailPage() {
         {tab === 'grades' && (
           <div className="flex flex-col gap-6 p-8">
             <h2 className="text-lg font-semibold text-gray-900">Оценки</h2>
-            {gradeItems.map((g) => (
-              <div key={g.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
+            {quizzes.length === 0 ? (
+              <p className="text-center py-8 text-zinc-500">Нет квизов для оценки</p>
+            ) : quizzes.map((q) => (
+              <div key={q.id} className="border border-zinc-100 rounded-xl p-4 flex items-center justify-between">
                 <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-semibold text-zinc-900">{g.title}</span>
-                  <div className="flex gap-4 text-xs text-zinc-400">
-                    <span>{g.submitted}</span><span>{g.questions} вопросов</span>
-                  </div>
+                  <span className="text-sm font-semibold text-zinc-900">{q.title}</span>
                 </div>
-                <Link to={`/teacher/courses/1/grades/${g.id}`}>
+                <Link to={`/teacher/courses/${courseId}/grades/${q.id}`}>
                   <Button size="sm">Открыть</Button>
                 </Link>
               </div>
@@ -209,128 +448,229 @@ export default function TeacherCourseDetailPage() {
         {tab === 'settings' && (
           <div className="flex flex-col gap-6 p-8">
             <h2 className="text-lg font-semibold text-gray-900">Настройки курса</h2>
-            <div className="max-w-lg flex flex-col gap-4">
-              <Input label="Название курса" defaultValue="Основы программирования на Python" />
-              <Input label="Описание" defaultValue="Курс по основам программирования" />
-              <Button>Сохранить</Button>
+            <div className="max-w-lg flex flex-col gap-6">
+              <div className="flex flex-col items-center gap-4">
+                {imagePreview || course?.image_url ? (
+                  <img src={imagePreview || (course?.image_url ? `${import.meta.env.VITE_API_URL.replace('/api/v1', '')}${course.image_url}` : undefined)} alt="Course" className="w-[186px] h-[186px] rounded-xl object-cover" />
+                ) : (
+                  <div className="w-[186px] h-[186px] rounded-xl bg-zinc-200 flex items-center justify-center">
+                    <span className="text-zinc-400 text-sm">Нет изображения</span>
+                  </div>
+                )}
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                    ref={imageInputRef}
+                  />
+                  <Button variant="outline" fullWidth onClick={() => imageInputRef.current?.click()}>
+                    {course?.image_url || imagePreview ? 'Изменить изображение' : 'Добавить изображение'}
+                  </Button>
+                  <span className="text-xs text-zinc-400">JPG, PNG. Максимум 2MB</span>
+                </div>
+              </div>
+              <Input 
+                label="Название курса" 
+                value={courseSettings.name}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCourseSettings({...courseSettings, name: e.target.value})}
+              />
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-medium text-zinc-900 tracking-wide">Описание</label>
+                <textarea 
+                  className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                  value={courseSettings.description}
+                  onChange={(e) => setCourseSettings({...courseSettings, description: e.target.value})}
+                />
+              </div>
+              <Button onClick={handleSaveCourseSettings}>Сохранить</Button>
             </div>
           </div>
         )}
       </div>
 
+      {/* QR Code Modal */}
       <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR-код и код доступа">
         <div className="flex flex-col items-center gap-4">
           <div className="w-56 h-56 border-2 border-zinc-200 rounded-xl flex items-center justify-center bg-white p-4">
-            <div className="w-full h-full bg-zinc-100 rounded flex items-center justify-center text-zinc-400 text-xs">QR Code</div>
+            <QrCode className="w-32 h-32 text-zinc-400" />
           </div>
           <p className="text-sm text-zinc-600">Отсканируйте для быстрого входа</p>
           <div className="bg-zinc-50 rounded-lg p-4 w-full text-center">
             <p className="text-xs text-zinc-500">Код доступа</p>
-            <p className="text-2xl font-bold text-zinc-900 tracking-wider">ALG101</p>
+            <p className="text-2xl font-bold text-zinc-900 tracking-wider">{selectedLecture?.access_code || '------'}</p>
           </div>
-        </div>
-        <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setQrOpen(false)}>Обновить</Button>
-          <Button className="flex-1">Скачать</Button>
         </div>
       </Modal>
 
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Редактировать лекцию">
-        <div className="flex flex-col gap-4">
-          <Input label="Название" defaultValue="Лекция 1" />
-          <Input label="Тема" defaultValue="Введение в алгоритмы" />
-          <div className="flex gap-4">
-            <Input label="Дата" defaultValue="21 февраля" />
-            <Input label="Время" defaultValue="10:00" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium text-zinc-900 tracking-wide">Описание</label>
-            <textarea className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10" defaultValue="Основные понятия и определения" />
-          </div>
-        </div>
-        <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setEditOpen(false)}>Отмена</Button>
-          <Button className="flex-1">Сохранить</Button>
-        </div>
-      </Modal>
-
-      <Modal open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Настройки лекции">
-        <Input label="Максимум участников" defaultValue="50" />
-        <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setSettingsOpen(false)}>Отмена</Button>
-          <Button className="flex-1">Сохранить</Button>
-        </div>
-      </Modal>
-
+      {/* Delete Lecture Modal */}
       <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Удалить лекцию?">
-        <p className="text-sm text-zinc-600">Вы уверены, что хотите удалить лекцию</p>
-        <div className="flex gap-4">
+        <p className="text-sm text-zinc-600">Вы уверены, что хотите удалить лекцию "{selectedLecture?.name}"?</p>
+        <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setDeleteOpen(false)}>Отмена</Button>
-          <Button variant="danger" className="flex-1">Удалить</Button>
+          <Button variant="danger" className="flex-1" onClick={handleDeleteLecture}>Удалить</Button>
         </div>
       </Modal>
 
-      <Modal open={startOpen} onClose={() => setStartOpen(false)} title="Начать лекцию?">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-5">
-            <div className="w-10 h-10 bg-zinc-100 rounded flex flex-col items-center justify-center text-xs text-zinc-400">
-              <span>15</span><span>янв</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium text-zinc-900">Введение в алгоритмы</span>
-              <div className="flex gap-4 text-xs text-zinc-400"><span>10:00</span><span>Лимит: 50 чел.</span></div>
-            </div>
-          </div>
-          <div className="text-center text-xs">
-            <p className="text-zinc-400">Код доступа:</p>
-            <p className="font-bold text-zinc-600">ALG101</p>
-          </div>
-        </div>
-        <div className="flex gap-4">
-          <Button variant="secondary" className="flex-1" onClick={() => setStartOpen(false)}>Отмена</Button>
-          <Button className="flex-1" onClick={() => { setStartOpen(false); navigate('/teacher/live/active'); }}>Начать</Button>
+      {/* Delete Course Modal */}
+      <Modal open={deleteCourseOpen} onClose={() => setDeleteCourseOpen(false)} title="Удалить курс?">
+        <p className="text-sm text-zinc-600">Вы уверены, что хотите удалить курс "{course?.name}"? Это действие нельзя отменить.</p>
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setDeleteCourseOpen(false)}>Отмена</Button>
+          <Button variant="danger" className="flex-1" onClick={handleDeleteCourse}>Удалить</Button>
         </div>
       </Modal>
 
-      <Modal open={addLectureOpen} onClose={() => setAddLectureOpen(false)} title="Создать лекцию">
+      {/* Start Session Modal */}
+      <Modal open={startOpen} onClose={() => { setStartOpen(false); setStartError('') }} title="Начать лекцию?">
+        {selectedLecture && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-5">
+              <div className="w-10 h-10 bg-zinc-100 rounded flex flex-col items-center justify-center text-xs text-zinc-400">
+                <span>{formatDate(selectedLecture.scheduled_at).date}</span>
+                <span>{formatDate(selectedLecture.scheduled_at).month}</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-sm font-medium text-zinc-900">{selectedLecture.name}</span>
+                <div className="flex gap-4 text-xs text-zinc-400">
+                  <span>{formatDate(selectedLecture.scheduled_at).time}</span>
+                  <span>Лимит: {selectedLecture.max_participants || 50} чел.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {startError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2 mt-4">{startError}</p>}
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => { setStartOpen(false); setStartError('') }}>Отмена</Button>
+          <Button className="flex-1" onClick={handleStartSession}>Начать</Button>
+        </div>
+      </Modal>
+
+      {/* Add Lecture Modal */}
+      <Modal open={addLectureOpen} onClose={() => { setAddLectureOpen(false); setLectureError('') }} title="Создать лекцию">
         <div className="flex flex-col gap-4">
-          <Input label="Название" placeholder="Лекция 1" />
-          <Input label="Тема" placeholder="Введение в алгоритмы" />
+          {lectureError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{lectureError}</p>}
+          <Input 
+            label="Название" 
+            placeholder="Лекция 1"
+            value={newLecture.name}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLecture({...newLecture, name: e.target.value})}
+          />
+          <Input 
+            label="Тема" 
+            placeholder="Введение в алгоритмы"
+            value={newLecture.topic}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLecture({...newLecture, topic: e.target.value})}
+          />
           <div className="flex gap-4">
-            <Input label="Дата" placeholder="21 февраля" />
-            <Input label="Время" placeholder="10:00" />
+            <div className="flex-1">
+              <label className="text-xs font-medium text-zinc-900 tracking-wide block mb-2">Дата</label>
+              <input 
+                type="date" 
+                className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                value={lectureDate}
+                onChange={(e) => setLectureDate(e.target.value)}
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs font-medium text-zinc-900 tracking-wide block mb-2">Время</label>
+              <input 
+                type="time" 
+                className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-zinc-900/10"
+                value={lectureTime}
+                onChange={(e) => setLectureTime(e.target.value)}
+              />
+            </div>
           </div>
+          <Input 
+            label="Максимум участников" 
+            type="number"
+            placeholder="50"
+            value={newLecture.max_participants?.toString() || '50'}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewLecture({...newLecture, max_participants: parseInt(e.target.value) || 50})}
+          />
           <div className="flex flex-col gap-2">
             <label className="text-xs font-medium text-zinc-900 tracking-wide">Описание</label>
-            <textarea className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10" placeholder="Основные понятия и определения" />
+            <textarea 
+              className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[80px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10" 
+              placeholder="Основные понятия и определения"
+              value={newLecture.description || ''}
+              onChange={(e) => setNewLecture({...newLecture, description: e.target.value})}
+            />
           </div>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setAddLectureOpen(false)}>Отмена</Button>
-          <Button className="flex-1">Сохранить</Button>
+          <Button className="flex-1" onClick={handleCreateLecture}>Создать</Button>
         </div>
       </Modal>
 
+      {/* Create Quiz Modal */}
       <Modal open={createQuizOpen} onClose={() => setCreateQuizOpen(false)} title="Создать квиз">
-        <Input label="Название квиза" placeholder="Введение" />
-        <div className="flex gap-4">
+        <Input 
+          label="Название квиза" 
+          placeholder="Введение"
+          value={newQuizTitle}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewQuizTitle(e.target.value)}
+        />
+        <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setCreateQuizOpen(false)}>Отмена</Button>
-          <Button className="flex-1">Создать</Button>
+          <Button className="flex-1" onClick={handleCreateQuiz}>Создать</Button>
         </div>
       </Modal>
 
+      {/* Invite Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Пригласить на курс">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <label className="text-xs font-medium text-zinc-900 tracking-wide">Ссылка для приглашения</label>
             <div className="flex gap-2">
-              <input className="flex-1 border border-zinc-200 rounded-lg px-4 py-3 text-sm bg-zinc-50 focus:outline-none" readOnly defaultValue="https://lecturehub.app/invite/abc123" />
-              <Button>Копировать</Button>
+              <input 
+                className="flex-1 border border-zinc-200 rounded-lg px-4 py-3 text-sm bg-zinc-50 focus:outline-none" 
+                readOnly 
+                value={`${window.location.origin}/student/courses/${courseId}`}
+              />
+              <Button onClick={copyInviteLink}>
+                {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </Button>
             </div>
           </div>
         </div>
-        <div className="flex gap-4">
+        <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setInviteOpen(false)}>Закрыть</Button>
+        </div>
+      </Modal>
+
+      {/* Add Material Modal */}
+      <Modal open={addMaterialOpen} onClose={() => setAddMaterialOpen(false)} title="Добавить материал">
+        <div className="flex flex-col gap-4">
+          <Input 
+            label="Название материала" 
+            placeholder="Презентация к лекции 1"
+            value={materialName}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaterialName(e.target.value)}
+          />
+          <Input 
+            label="Ссылка (URL)" 
+            placeholder="https://drive.google.com/..."
+            value={materialUrl}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setMaterialUrl(e.target.value)}
+          />
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-medium text-zinc-900 tracking-wide">Описание</label>
+            <textarea 
+              className="w-full border border-zinc-200 rounded-lg px-4 py-3 text-sm min-h-[60px] resize-none focus:outline-none focus:ring-2 focus:ring-zinc-900/10" 
+              placeholder="Краткое описание материала"
+              value={materialDesc}
+              onChange={(e) => setMaterialDesc(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setAddMaterialOpen(false)}>Отмена</Button>
+          <Button className="flex-1" onClick={handleCreateMaterial}>Добавить</Button>
         </div>
       </Modal>
     </div>

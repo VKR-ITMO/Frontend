@@ -19,6 +19,7 @@ export default function LiveSessionPage() {
   const [expanded, setExpanded] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [startingSession, setStartingSession] = useState<string | null>(null)
+  const [startError, setStartError] = useState('')
   const [freeLectureModal, setFreeLectureModal] = useState(false)
   const [freeLectureTopic, setFreeLectureTopic] = useState('')
   const [creatingFreeLecture, setCreatingFreeLecture] = useState(false)
@@ -58,13 +59,30 @@ export default function LiveSessionPage() {
     loadCourses()
   }, [])
 
-  const startSession = async (lectureId: string) => {
+  const startSession = async (lectureId: string, lectureStatus?: string) => {
     setStartingSession(lectureId)
+    setStartError('')
     try {
+      if (lectureStatus !== 'PUBLISHED') {
+        await lecturesApi.publishLecture(lectureId)
+      }
       const session = await sessionsApi.startSession(lectureId)
       navigate('/teacher/live/active', { state: { session } })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start session:', error)
+      const errorMsg = error?.message || 'Не удалось начать лекцию'
+      if (errorMsg.includes('already have an active session')) {
+        setStartError('У вас уже есть активная сессия. Сначала завершите её.')
+      } else if (errorMsg.includes('not found')) {
+        setStartError('Лекция не найдена.')
+      } else if (errorMsg.includes('Only teachers')) {
+        setStartError('Только преподаватели могут начинать лекции.')
+      } else if (errorMsg.includes('own lectures')) {
+        setStartError('Вы можете начинать только свои лекции.')
+      } else {
+        setStartError(errorMsg)
+      }
+    } finally {
       setStartingSession(null)
     }
   }
@@ -72,12 +90,22 @@ export default function LiveSessionPage() {
   const createFreeLecture = async () => {
     if (!freeLectureTopic.trim()) return
     setCreatingFreeLecture(true)
+    setStartError('')
     try {
       const lecture = await lecturesApi.createFreeLecture(freeLectureTopic)
       const session = await sessionsApi.startSession(lecture.id)
       navigate('/teacher/live/active', { state: { session } })
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create free lecture:', error)
+      const errorMsg = error?.message || 'Не удалось создать быструю лекцию'
+      if (errorMsg.includes('already have an active session')) {
+        setStartError('У вас уже есть активная сессия. Сначала завершите её.')
+      } else if (errorMsg.includes('Only teachers')) {
+        setStartError('Только преподаватели могут создавать лекции.')
+      } else {
+        setStartError(errorMsg)
+      }
+    } finally {
       setCreatingFreeLecture(false)
     }
   }
@@ -107,17 +135,21 @@ export default function LiveSessionPage() {
       <div className="flex flex-col items-center gap-10 w-full max-w-3xl px-8">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-bold text-zinc-900">Нет активной сессии</h1>
-          <p className="text-sm text-zinc-500">Выберите лекцию из одного из ваших курсов, чтобы начать прямой эфир со студентами</p>
+          <p className="text-sm text-zinc-500">Выберите лекцию из одного из ваших курсов или начните быструю лекцию без привязки к курсу</p>
         </div>
+        {startError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{startError}</p>}
 
-        <div className="bg-white border border-zinc-100 rounded-xl p-4 flex items-center justify-between w-full">
+        <div className="w-full bg-white border border-zinc-200 rounded-xl p-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-zinc-100 rounded-lg flex items-center justify-center">
-              <Plus className="w-5 h-5 text-zinc-500" />
+            <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center">
+              <Plus className="w-5 h-5 text-zinc-600" />
             </div>
-            <span className="text-sm font-semibold text-zinc-900">Быстрая лекция (без курса)</span>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold text-zinc-900">Быстрая лекция</span>
+              <span className="text-xs text-zinc-500">Начать лекцию без привязки к курсу</span>
+            </div>
           </div>
-          <Button size="sm" onClick={() => setFreeLectureModal(true)}>Начать</Button>
+          <Button onClick={() => { setStartError(''); setFreeLectureModal(true) }}>Создать</Button>
         </div>
 
         <div className="h-px bg-zinc-100 w-full" />
@@ -146,7 +178,7 @@ export default function LiveSessionPage() {
                       <p className="text-sm text-zinc-400 text-center py-2">Нет лекций</p>
                     ) : (
                       <div className="flex flex-col gap-4">
-                        {course.lectures.filter(l => l.status === 'PUBLISHED').map((lec, idx) => (
+                        {course.lectures.filter(l => l.status === 'PUBLISHED' || l.status === 'DRAFT').map((lec, idx) => (
                           <div key={lec.id} className="flex items-center justify-between">
                             <div className="flex flex-col gap-0.5">
                               <span className="text-sm font-medium text-zinc-900 truncate">{lec.topic}</span>
@@ -162,7 +194,7 @@ export default function LiveSessionPage() {
                             </div>
                             <Button 
                               size="sm" 
-                              onClick={() => startSession(lec.id)}
+                              onClick={() => startSession(lec.id, lec.status)}
                               disabled={startingSession === lec.id}
                             >
                               {startingSession === lec.id ? 'Запуск...' : 'Начать'}
@@ -179,8 +211,9 @@ export default function LiveSessionPage() {
         )}
       </div>
 
-      <Modal open={freeLectureModal} onClose={() => setFreeLectureModal(false)} title="Быстрая лекция">
+      <Modal open={freeLectureModal} onClose={() => { setFreeLectureModal(false); setStartError('') }} title="Быстрая лекция">
         <div className="flex flex-col gap-4">
+          {startError && <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{startError}</p>}
           <Input
             label="Тема лекции"
             placeholder="Введите тему"
@@ -188,11 +221,11 @@ export default function LiveSessionPage() {
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFreeLectureTopic(e.target.value)}
           />
           <div className="flex gap-4">
-            <Button variant="secondary" className="flex-1" onClick={() => setFreeLectureModal(false)}>
+            <Button variant="secondary" className="flex-1" onClick={() => { setFreeLectureModal(false); setStartError('') }}>
               Отмена
             </Button>
-            <Button 
-              className="flex-1" 
+            <Button
+              className="flex-1"
               onClick={createFreeLecture}
               disabled={creatingFreeLecture || !freeLectureTopic.trim()}
             >

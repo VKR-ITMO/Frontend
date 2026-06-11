@@ -9,10 +9,14 @@ export interface User {
   created_at: string
 }
 
-export interface AuthResponse {
-  user: User
+export interface TokenResponse {
   access_token: string
-  refresh_token: string
+  token_type: string
+}
+
+export interface AuthMeResponse {
+  username: string
+  id: string
 }
 
 export interface StudentStats {
@@ -20,17 +24,19 @@ export interface StudentStats {
   total_lectures_attended: number
   total_quizzes_taken: number
   average_quiz_score: number
+  total_achievements: number
 }
 
 export type CourseStatus = 'ACTIVE' | 'ARCHIVED'
 
 export interface Course {
   id: string
+  teacher_id: string
   name: string
   code: string
   description?: string | null
   semester: string
-  teacher_id: string
+  image_url?: string | null
   status: CourseStatus
   created_at: string
 }
@@ -45,6 +51,7 @@ export interface CourseCreate {
   code: string
   description?: string
   semester: string
+  image_url?: string
 }
 
 export interface CourseUpdate {
@@ -52,6 +59,7 @@ export interface CourseUpdate {
   code?: string
   description?: string
   semester?: string
+  image_url?: string
   status?: CourseStatus
 }
 
@@ -112,6 +120,14 @@ export interface SessionWithLecture extends Session {
   lecture: Lecture
 }
 
+export interface GuestJoinResponse {
+  access_token: string
+  token_type: string
+  student_id: string
+  student_name: string
+  session: SessionWithLecture
+}
+
 export interface SessionParticipant {
   id: string
   session_id: string
@@ -120,6 +136,7 @@ export interface SessionParticipant {
   student_email: string
   joined_at: string
   left_at?: string | null
+  total_score?: number
 }
 
 export interface CompletedSession {
@@ -141,7 +158,7 @@ export interface SessionJoin {
   access_code: string
 }
 
-export type ReactionType = 'thumbsUp' | 'heart' | 'clap' | 'thinking' | 'confused' | 'fire'
+export type ReactionType = 'THUMBS_UP' | 'HEART' | 'CLAP' | 'THINKING' | 'CONFUSED' | 'FIRE'
 
 export interface Reaction {
   id: string
@@ -152,12 +169,13 @@ export interface Reaction {
 }
 
 export interface ReactionStats {
-  thumbsUp: number
-  heart: number
-  clap: number
-  thinking: number
-  confused: number
-  fire: number
+  THUMBS_UP: number
+  HEART: number
+  CLAP: number
+  THINKING: number
+  CONFUSED: number
+  FIRE: number
+  total: number
 }
 
 export interface Quiz {
@@ -185,9 +203,10 @@ export interface SessionQuiz {
   id: string
   session_id: string
   quiz_id: string
+  launched_at: string
   started_at: string
   ended_at?: string | null
-  time_limit: number
+  time_limit?: number
 }
 
 export interface QuizSubmission {
@@ -208,13 +227,13 @@ export interface QuizResult {
 }
 
 export interface LeaderboardEntry {
-  rank: number
   student_id: string
   student_name: string
   score: number
+  submitted_at: string
 }
 
-export type AnnouncementType = 'INFO' | 'WARNING' | 'URGENT'
+export type AnnouncementType = 'INFO' | 'WARNING' | 'SUCCESS'
 
 export interface Announcement {
   id: string
