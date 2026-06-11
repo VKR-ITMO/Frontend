@@ -108,6 +108,7 @@ export default function StudentCoursesPage() {
               description={course.description || ''}
               teacher=""
               linkTo={`/student/courses/${course.id}`}
+              imageUrl={course.image_url ? `${import.meta.env.VITE_API_URL.replace('/api/v1', '')}${course.image_url}` : undefined}
             />
           ))}
         </div>

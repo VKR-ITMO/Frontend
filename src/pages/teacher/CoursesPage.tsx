@@ -15,6 +15,7 @@ export default function TeacherCoursesPage() {
   const [error, setError] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [newCourse, setNewCourse] = useState<CourseCreate>({
     name: '',
@@ -26,12 +27,9 @@ export default function TeacherCoursesPage() {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setImageFile(file)
       const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64 = reader.result as string
-        setImagePreview(base64)
-        setNewCourse({...newCourse, image_url: base64})
-      }
+      reader.onloadend = () => setImagePreview(reader.result as string)
       reader.readAsDataURL(file)
     }
   }
@@ -57,10 +55,20 @@ export default function TeacherCoursesPage() {
 
   const handleCreateCourse = async () => {
     try {
-      await coursesApi.createCourse(newCourse)
+      const created = await coursesApi.createCourse(newCourse)
+      if (imageFile) {
+        const formData = new FormData()
+        formData.append('file', imageFile)
+        await fetch(`${import.meta.env.VITE_API_URL}/courses/${created.id}/image`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` },
+          body: formData,
+        })
+      }
       setCreateOpen(false)
       setNewCourse({ name: '', code: '', description: '', semester: '2024-2025' })
       setImagePreview(null)
+      setImageFile(null)
       loadCourses()
     } catch (err) {
       console.error('Error creating course:', err)
@@ -144,7 +152,7 @@ export default function TeacherCoursesPage() {
               <div className="relative w-full h-32 rounded-lg overflow-hidden">
                 <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
                 <button 
-                  onClick={() => { setImagePreview(null); setNewCourse({...newCourse, image_url: undefined}) }}
+                  onClick={() => { setImagePreview(null); setImageFile(null) }}
                   className="absolute top-2 right-2 bg-white/80 rounded-full p-1 hover:bg-white"
                 >
                   ✕
