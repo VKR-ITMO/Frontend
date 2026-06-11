@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, QrCode, Pencil, Trash2, Download, Copy, Check } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -40,6 +40,7 @@ export default function TeacherCourseDetailPage() {
   const [materialDesc, setMaterialDesc] = useState('')
   const [loading, setLoading] = useState(true)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   
   const [tab, setTab] = useState('lectures')
   const [filter, setFilter] = useState('Все')
@@ -450,7 +451,7 @@ export default function TeacherCourseDetailPage() {
             <div className="max-w-lg flex flex-col gap-6">
               <div className="flex flex-col items-center gap-4">
                 {imagePreview || course?.image_url ? (
-                  <img src={imagePreview || (course?.image_url || undefined)} alt="Course" className="w-[186px] h-[186px] rounded-xl object-cover" />
+                  <img src={imagePreview || (course?.image_url ? `${import.meta.env.VITE_API_URL.replace('/api/v1', '')}${course.image_url}` : undefined)} alt="Course" className="w-[186px] h-[186px] rounded-xl object-cover" />
                 ) : (
                   <div className="w-[186px] h-[186px] rounded-xl bg-zinc-200 flex items-center justify-center">
                     <span className="text-zinc-400 text-sm">Нет изображения</span>
@@ -462,13 +463,11 @@ export default function TeacherCourseDetailPage() {
                     accept="image/*"
                     onChange={handleImageChange}
                     className="hidden"
-                    id="course-image-upload"
+                    ref={imageInputRef}
                   />
-                  <label htmlFor="course-image-upload">
-                    <Button variant="outline" fullWidth className="cursor-pointer">
-                      {course?.image_url || imagePreview ? 'Изменить изображение' : 'Добавить изображение'}
-                    </Button>
-                  </label>
+                  <Button variant="outline" fullWidth onClick={() => imageInputRef.current?.click()}>
+                    {course?.image_url || imagePreview ? 'Изменить изображение' : 'Добавить изображение'}
+                  </Button>
                   <span className="text-xs text-zinc-400">JPG, PNG. Максимум 2MB</span>
                 </div>
               </div>
