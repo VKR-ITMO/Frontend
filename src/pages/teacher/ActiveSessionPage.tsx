@@ -784,9 +784,9 @@ export default function ActiveSessionPage() {
                 value={q.text}
                 onChange={(e) => updateQuestion(qIdx, 'text', e.target.value)}
               />
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap items-center">
                 <select
-                  className="flex-1 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none bg-white"
+                  className="flex-1 min-w-0 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none bg-white"
                   value={q.type}
                   onChange={(e) => updateQuestion(qIdx, 'type', e.target.value)}
                 >
@@ -798,23 +798,23 @@ export default function ActiveSessionPage() {
                   <option value="ORDERING">Упорядочивание</option>
                   <option value="MATCHING">Соответствие</option>
                 </select>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-zinc-600">Таймер (сек):</label>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <label className="text-xs text-zinc-600 whitespace-nowrap">Таймер:</label>
                   <input
                     type="number"
                     min={0}
-                    className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                    className="w-14 px-2 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none text-center"
                     placeholder="30"
                     value={q.timer}
                     onChange={(e) => updateQuestion(qIdx, 'timer', parseInt(e.target.value) || 30)}
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-zinc-600">Баллы:</label>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <label className="text-xs text-zinc-600 whitespace-nowrap">Баллы:</label>
                   <input
                     type="number"
                     min={1}
-                    className="w-20 px-3 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none"
+                    className="w-14 px-2 py-2 border border-zinc-200 rounded-lg text-sm focus:outline-none text-center"
                     placeholder="1"
                     value={q.points}
                     onChange={(e) => updateQuestion(qIdx, 'points', parseInt(e.target.value) || 1)}

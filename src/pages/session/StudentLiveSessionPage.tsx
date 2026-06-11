@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Clock, ThumbsUp, ThumbsDown, Lightbulb, Frown, GripVertical, Trophy, Users, Star, Check, X, Upload, ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '../../components/ui/Button'
@@ -453,10 +453,6 @@ export default function StudentLiveSessionPage() {
     { type: 'FIRE' as ReactionType, label: 'Скучно', icon: <Frown className="w-6 h-6 text-zinc-400" /> },
   ]
 
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-  }
-
   const currentQ = quiz ? quiz.questions[quiz.currentQuestion] : null
   const timeLeft =
     questionDeadline !== null ? Math.max(0, Math.ceil((questionDeadline - nowTick) / 1000)) : null
@@ -607,30 +603,127 @@ export default function StudentLiveSessionPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-zinc-900">Участники ({participantsList.length})</h3>
           </div>
-          <div className="flex flex-col gap-2">
-            {participantsList.length === 0 ? (
-              <p className="text-center py-4 text-xs text-zinc-400">Нет участников</p>
-            ) : [...participantsList]
-              .sort((a, b) => (b.total_score || 0) - (a.total_score || 0))
-              .slice(0, 10)
-              .map((p, i) => (
-              <div key={p.id} className="bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-4 min-w-0">
-                  <span className="text-xs font-semibold text-zinc-400 w-3">{i + 1}</span>
-                  <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
-                    {getInitials(p.student_name)}
-                  </div>
-                  <span className="text-sm font-medium text-zinc-900 truncate">{p.student_name}</span>
-                </div>
-                <span className="text-xs font-semibold text-zinc-900 bg-white border border-zinc-200 rounded-full px-2.5 py-1 shrink-0">
-                  {p.total_score ?? 0} б.
-                </span>
-              </div>
-            ))}
-          </div>
+          <AnimatedLeaderboard participants={participantsList} />
         </div>
       </div>
     </div>
+  )
+}
+
+function getInitials(name: string) {
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+function AnimatedLeaderboard({ participants }: { participants: SessionParticipant[] }) {
+  const sorted = useMemo(
+    () => [...participants].sort((a, b) => (b.total_score || 0) - (a.total_score || 0)).slice(0, 10),
+    [participants]
+  )
+
+  // FLIP: сохраняем позиции элементов до перерисовки, анимируем после
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const prevTops = useRef<Map<string, number>>(new Map())
+
+  useLayoutEffect(() => {
+    // Применяем FLIP: смещаем каждый элемент обратно на старую позицию и анимируем к новой
+    for (const [id, el] of itemRefs.current) {
+      const prevTop = prevTops.current.get(id)
+      if (prevTop === undefined) continue
+      const currTop = el.getBoundingClientRect().top
+      const delta = prevTop - currTop
+      if (Math.abs(delta) > 0.5) {
+        el.style.transform = `translateY(${delta}px)`
+        el.style.transition = 'none'
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            el.style.transform = 'translateY(0)'
+            el.style.transition = 'transform 450ms cubic-bezier(0.4, 0, 0.2, 1)'
+          })
+        })
+      }
+    }
+    // Запоминаем текущие позиции для следующей анимации
+    for (const [id, el] of itemRefs.current) {
+      prevTops.current.set(id, el.getBoundingClientRect().top)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorted.map(p => p.id).join(',')])
+
+  // Отслеживаем изменения баллов для попапа "+X б."
+  const prevScores = useRef<Map<string, number>>(new Map())
+  const [scoreDeltas, setScoreDeltas] = useState<Map<string, { delta: number; ts: number }>>(new Map())
+
+  useEffect(() => {
+    const newDeltas = new Map<string, { delta: number; ts: number }>()
+    for (const p of participants) {
+      const prev = prevScores.current.get(p.id) ?? p.total_score ?? 0
+      const curr = p.total_score ?? 0
+      if (curr > prev) newDeltas.set(p.id, { delta: curr - prev, ts: Date.now() })
+    }
+    if (newDeltas.size > 0) {
+      setScoreDeltas(newDeltas)
+      setTimeout(() => setScoreDeltas(new Map()), 1400)
+    }
+    prevScores.current = new Map(participants.map(p => [p.id, p.total_score ?? 0]))
+  }, [participants])
+
+  if (sorted.length === 0) {
+    return <p className="text-center py-4 text-xs text-zinc-400">Нет участников</p>
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes lb-float-up {
+          0%   { opacity: 1; transform: translateY(0) scale(1); }
+          60%  { opacity: 1; transform: translateY(-12px) scale(1.05); }
+          100% { opacity: 0; transform: translateY(-22px) scale(0.9); }
+        }
+        .lb-float-up { animation: lb-float-up 1.3s ease-out forwards; }
+        @keyframes lb-ring-flash {
+          0%, 100% { box-shadow: 0 0 0 0px rgba(52,211,153,0); }
+          40%       { box-shadow: 0 0 0 3px rgba(52,211,153,0.5); }
+        }
+        .lb-ring-flash { animation: lb-ring-flash 0.9s ease-out; }
+      `}</style>
+      <div className="flex flex-col gap-2">
+        {sorted.map((p, i) => {
+          const delta = scoreDeltas.get(p.id)
+          return (
+            <div
+              key={p.id}
+              ref={el => { if (el) itemRefs.current.set(p.id, el); else itemRefs.current.delete(p.id) }}
+              className={`bg-zinc-50 rounded-xl px-4 py-3 flex items-center justify-between relative${delta ? ' lb-ring-flash' : ''}`}
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <span className="text-xs font-semibold text-zinc-400 w-3">{i + 1}</span>
+                <div className="w-9 h-9 bg-zinc-200 rounded-full flex items-center justify-center text-xs font-semibold text-zinc-600 shrink-0">
+                  {getInitials(p.student_name)}
+                </div>
+                <span className="text-sm font-medium text-zinc-900 truncate">{p.student_name}</span>
+              </div>
+              <div className="relative shrink-0">
+                {delta && (
+                  <span
+                    key={delta.ts}
+                    className="lb-float-up absolute -top-5 right-0 text-xs font-bold text-emerald-600 pointer-events-none whitespace-nowrap"
+                  >
+                    +{delta.delta} б.
+                  </span>
+                )}
+                <span className={`text-xs font-semibold rounded-full px-2.5 py-1 inline-block transition-colors duration-500 ${
+                  delta
+                    ? 'bg-emerald-50 border border-emerald-400 text-emerald-700'
+                    : 'bg-white border border-zinc-200 text-zinc-900'
+                }`}>
+                  {p.total_score ?? 0} б.
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }
 
