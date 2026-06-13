@@ -27,6 +27,14 @@ export interface StudentStats {
   total_achievements: number
 }
 
+export interface Achievement {
+  id: string
+  type: string
+  title: string
+  description: string
+  earned_at: string
+}
+
 export type CourseStatus = 'ACTIVE' | 'ARCHIVED'
 
 export interface Course {

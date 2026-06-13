@@ -1,5 +1,5 @@
 import api from './client'
-import type { User, StudentStats } from './types'
+import type { User, StudentStats, Achievement } from './types'
 
 export const usersApi = {
   getUser: (userId: string): Promise<User> => {
@@ -19,5 +19,9 @@ export const usersApi = {
       current_password: currentPassword,
       new_password: newPassword,
     })
+  },
+
+  getAchievements: (userId: string): Promise<Achievement[]> => {
+    return api.get<Achievement[]>(`/users/${userId}/achievements`)
   },
 }
