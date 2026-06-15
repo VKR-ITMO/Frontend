@@ -465,9 +465,9 @@ export default function ActiveSessionPage() {
             text: pollQuestion,
             type: 'SINGLE',
             timer: 60,
-            points: 1,
+            points: 0,
             order_index: 0,
-            answers: pollOptions.filter(o => o.trim()).map((o, i) => ({ text: o, is_correct: i === 0 })),
+            answers: pollOptions.filter(o => o.trim()).map((o) => ({ text: o, is_correct: false })),
           }],
         })
       } else {
@@ -477,7 +477,7 @@ export default function ActiveSessionPage() {
             text: pollQuestion,
             type: 'TEXT',
             timer: 120,
-            points: 1,
+            points: 0,
             order_index: 0,
             answers: [],
           }],
