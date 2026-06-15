@@ -56,7 +56,7 @@ export default function RegisterPage() {
       <RoleToggle roles={['Студент', 'Преподаватель']} activeRole={role} onChange={setRole} />
 
       <form className="flex flex-col gap-4 w-full" onSubmit={handleSubmit}>
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
           <Input 
             label="Имя" 
             placeholder="Иван" 

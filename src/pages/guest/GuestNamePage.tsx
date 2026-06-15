@@ -64,15 +64,18 @@ export default function GuestNamePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white px-4 relative">
-      <Link
-        to="/join"
-        state={{ code: accessCode }}
-        className="absolute top-6 left-6 flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        <span>Назад</span>
-      </Link>
+    <div className="min-h-screen flex flex-col bg-white px-4">
+      <div className="pt-6 pb-2">
+        <Link
+          to="/join"
+          state={{ code: accessCode }}
+          className="inline-flex items-center gap-2 text-sm text-zinc-600 hover:text-zinc-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Назад</span>
+        </Link>
+      </div>
+      <div className="flex-1 flex items-center justify-center py-8">
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-4">
           <div className="bg-zinc-900 rounded-lg w-10 h-10 flex items-center justify-center">
@@ -104,6 +107,7 @@ export default function GuestNamePage() {
         <p className="text-xs text-zinc-400 text-center">
           Код сессии: <span className="font-semibold text-zinc-600">{accessCode}</span>
         </p>
+      </div>
       </div>
     </div>
   )
