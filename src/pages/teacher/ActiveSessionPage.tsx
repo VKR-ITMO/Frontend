@@ -8,6 +8,7 @@ import Input from '../../components/ui/Input'
 import { sessionsApi } from '../../api/sessions'
 import { reactionsApi } from '../../api/reactions'
 import { quizzesApi, type ActiveQuizData, type SubmissionsDetailsResponse } from '../../api/quizzes'
+import PollChart from '../../components/ui/PollChart'
 import { API_BASE_URL } from '../../api/client'
 import type { Session, SessionParticipant, ReactionStats, Quiz, SessionQuiz } from '../../api/types'
 
@@ -47,6 +48,7 @@ export default function ActiveSessionPage() {
   const [createQuizError, setCreateQuizError] = useState('')
   const [launchingTemplateId, setLaunchingTemplateId] = useState<string | null>(null)
   const [creatingPoll, setCreatingPoll] = useState(false)
+  const [pollChartModalId, setPollChartModalId] = useState<string | null>(null)
 
   // Launched quizzes state
   const [launchedQuizzes, setLaunchedQuizzes] = useState<(SessionQuiz & { title?: string })[]>([])
@@ -639,6 +641,12 @@ export default function ActiveSessionPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => setPollChartModalId(q.id)}
+                      className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-2 py-1 rounded hover:bg-zinc-50 transition-colors"
+                    >
+                      <ChevronRight className="w-3 h-3" /> Диаграмма
+                    </button>
+                    <button
                       onClick={() => handleViewSubmissions(q.id, q.title || `Квиз #${idx + 1}`)}
                       className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-2 py-1 rounded hover:bg-zinc-50 transition-colors"
                     >
@@ -1174,6 +1182,24 @@ export default function ActiveSessionPage() {
         </div>
         <div className="flex gap-4 mt-4">
           <Button variant="secondary" className="flex-1" onClick={() => setSubmissionsOpen(false)}>
+            Закрыть
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Poll Chart Modal */}
+      <Modal
+        open={!!pollChartModalId}
+        onClose={() => setPollChartModalId(null)}
+        title="Диаграмма ответов"
+      >
+        {pollChartModalId && (
+          <div className="py-2">
+            <PollChart sessionQuizId={pollChartModalId} pollInterval={3000} />
+          </div>
+        )}
+        <div className="flex gap-4 mt-4">
+          <Button variant="secondary" className="flex-1" onClick={() => setPollChartModalId(null)}>
             Закрыть
           </Button>
         </div>

@@ -57,6 +57,22 @@ export const quizzesApi = {
   getSubmissionsDetails: (sessionQuizId: string): Promise<SubmissionsDetailsResponse> => {
     return api.get<SubmissionsDetailsResponse>(`/session-quizzes/${sessionQuizId}/submissions`)
   },
+
+  getPollStats: (sessionQuizId: string): Promise<PollStats> => {
+    return api.get<PollStats>(`/session-quizzes/${sessionQuizId}/poll-stats`)
+  },
+}
+
+export interface PollOption {
+  answer_id: string
+  text: string
+  count: number
+  percent: number
+}
+
+export interface PollStats {
+  total_votes: number
+  options: PollOption[]
 }
 
 export interface SubmissionAnswerView {

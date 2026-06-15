@@ -6,6 +6,7 @@ import { reactionsApi } from '../../api/reactions'
 import { sessionsApi } from '../../api/sessions'
 import { api, API_BASE_URL } from '../../api/client'
 import { quizzesApi, type ActiveQuizQuestion } from '../../api/quizzes'
+import PollChart from '../../components/ui/PollChart'
 import { useAuth } from '../../contexts/AuthContext'
 import type { SessionWithLecture, SessionParticipant, ReactionType } from '../../api/types'
 
@@ -33,6 +34,7 @@ export default function StudentLiveSessionPage() {
   const [error, setError] = useState('')
   const [quiz, setQuiz] = useState<ActiveQuiz | null>(null)
   const [quizResult, setQuizResult] = useState<{ score: number; correct: number; total: number } | null>(null)
+  const [pollChartId, setPollChartId] = useState<string | null>(null)
   const [sessionEnded, setSessionEnded] = useState(false)
   const [reactionCounts, setReactionCounts] = useState({ THUMBS_UP: 0, CONFUSED: 0, THINKING: 0, FIRE: 0 })
   // Кулдаун по каждому типу реакции (timestamp окончания в мс) — совпадает с серверным лимитом 5с
@@ -324,6 +326,9 @@ export default function StudentLiveSessionPage() {
         const result = await quizzesApi.submitQuizAnswers(submittedId, answers)
         setQuizResult({ score: result.score, correct: 0, total: quiz.questions.length })
         setLastScore(result.score)
+        if (quiz.questions.length === 1 && quiz.questions[0].type === 'SINGLE') {
+          setPollChartId(submittedId)
+        }
       } catch (error: any) {
         console.error('Submit failed:', error)
         const errorMsg = error?.message || 'Не удалось отправить ответы'
@@ -491,10 +496,17 @@ export default function StudentLiveSessionPage() {
 
           {/* Quiz submitted result (for the last submitted quiz) */}
           {quizResult && lastScore !== null && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center">
-              <p className="text-sm font-medium text-emerald-800 mb-1">Ответы отправлены!</p>
-              <p className="text-xs text-emerald-600">Баллов за последний квиз: {quizResult.score}</p>
-            </div>
+            pollChartId ? (
+              <div className="bg-white border border-zinc-200 rounded-xl p-5">
+                <p className="text-sm font-semibold text-zinc-900 mb-4 text-center">Результаты опроса</p>
+                <PollChart sessionQuizId={pollChartId} />
+              </div>
+            ) : (
+              <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-5 text-center">
+                <p className="text-sm font-medium text-emerald-800 mb-1">Ответы отправлены!</p>
+                <p className="text-xs text-emerald-600">Баллов за последний квиз: {quizResult.score}</p>
+              </div>
+            )
           )}
 
           {/* Активный квиз — проходит прямо здесь, на месте блока ожидания */}
