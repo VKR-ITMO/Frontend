@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Heart, Download } from 'lucide-react'
+import { QrCode, Clock, Users, Copy, Check, Plus, Trash2, Play, Square, ChevronRight, Eye, ThumbsUp, HelpCircle, Lightbulb, Frown, Download } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
@@ -508,7 +508,7 @@ export default function ActiveSessionPage() {
     { key: 'THUMBS_UP', name: 'Понятно', icon: <ThumbsUp className="w-5 h-5" />, count: reactions.THUMBS_UP },
     { key: 'CONFUSED', name: 'Непонятно', icon: <HelpCircle className="w-5 h-5" />, count: reactions.CONFUSED },
     { key: 'THINKING', name: 'Интересно', icon: <Lightbulb className="w-5 h-5" />, count: reactions.THINKING },
-    { key: 'HEART', name: 'Нравится', icon: <Heart className="w-5 h-5" />, count: reactions.HEART },
+    { key: 'FIRE', name: 'Скучно', icon: <Frown className="w-5 h-5" />, count: reactions.FIRE },
   ]
 
   const activeQuiz = launchedQuizzes.find(q => !q.ended_at)

@@ -52,6 +52,42 @@ export default function StudentLiveSessionPage() {
   const [questionDeadline, setQuestionDeadline] = useState<number | null>(null)
   // Флаг идущей отправки — защита от двойного сабмита (клик + таймер)
   const submittingRef = useRef(false)
+  const pollHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [pollCountdown, setPollCountdown] = useState<number | null>(null)
+
+  // Следим за завершением опроса: когда ended_at появится — прячем диаграмму через 15с
+  useEffect(() => {
+    if (!pollChartId) return
+    let active = true
+    const checkEnded = async () => {
+      try {
+        const sq = await quizzesApi.getSessionQuiz(pollChartId)
+        if (active && sq.ended_at && !pollHideTimerRef.current) {
+          setPollCountdown(15)
+          pollHideTimerRef.current = setTimeout(() => {
+            setPollChartId(null)
+            setQuizResult(null)
+            setPollCountdown(null)
+            pollHideTimerRef.current = null
+          }, 15000)
+        }
+      } catch { /* ignore */ }
+    }
+    checkEnded()
+    const interval = setInterval(checkEnded, 3000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [pollChartId])
+
+  // Тик обратного отсчёта скрытия диаграммы
+  useEffect(() => {
+    if (pollCountdown === null) return
+    if (pollCountdown <= 0) return
+    const t = setTimeout(() => setPollCountdown(c => (c !== null ? c - 1 : null)), 1000)
+    return () => clearTimeout(t)
+  }, [pollCountdown])
 
   // Сохраняем прогресс квиза (ответы, текущий вопрос) при каждом изменении
   useEffect(() => {
@@ -498,7 +534,14 @@ export default function StudentLiveSessionPage() {
           {quizResult && lastScore !== null && (
             pollChartId ? (
               <div className="bg-white border border-zinc-200 rounded-xl p-5">
-                <p className="text-sm font-semibold text-zinc-900 mb-4 text-center">Результаты опроса</p>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm font-semibold text-zinc-900">Результаты опроса</p>
+                  {pollCountdown !== null && (
+                    <span className="text-xs text-zinc-400 bg-zinc-100 px-2 py-1 rounded-full">
+                      исчезнет через {pollCountdown}с
+                    </span>
+                  )}
+                </div>
                 <PollChart sessionQuizId={pollChartId} />
               </div>
             ) : (
