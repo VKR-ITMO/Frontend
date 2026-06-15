@@ -611,7 +611,23 @@ export default function ActiveSessionPage() {
                       <span className="text-xs font-medium text-zinc-400">Вопрос {idx + 1} · {q.type} · {q.points} б. · {q.timer}с</span>
                     </div>
                     <p className="text-sm font-medium text-zinc-900 mb-2">{q.text}</p>
-                    {q.answers.length > 0 && (
+                    {q.type === 'MATCHING' ? (
+                      <div className="flex flex-col gap-1.5">
+                        {Object.entries((q.extra_data?.correct_pairs as Record<string, string>) || {}).map(([left, right], i) => (
+                          <div key={i} className="text-xs px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            ✓ {left} → {right}
+                          </div>
+                        ))}
+                      </div>
+                    ) : q.type === 'ORDERING' ? (
+                      <div className="flex flex-col gap-1.5">
+                        {((q.extra_data?.correct_order as string[]) || []).map((item, i) => (
+                          <div key={i} className="text-xs px-3 py-2 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            {i + 1}. {item}
+                          </div>
+                        ))}
+                      </div>
+                    ) : q.answers.length > 0 ? (
                       <div className="flex flex-col gap-1.5">
                         {q.answers.map((a) => (
                           <div key={a.id} className={`text-xs px-3 py-2 rounded-lg ${a.is_correct ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-zinc-50 text-zinc-600 border border-zinc-100'}`}>
@@ -619,7 +635,7 @@ export default function ActiveSessionPage() {
                           </div>
                         ))}
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>
