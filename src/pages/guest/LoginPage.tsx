@@ -76,6 +76,9 @@ export default function LoginPage() {
             Зарегистрироваться
           </Link>
         </p>
+        <Link to="/join" className="text-zinc-400 hover:text-zinc-600 transition-colors">
+          Войти как гость
+        </Link>
       </div>
     </div>
   )

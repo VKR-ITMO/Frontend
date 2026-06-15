@@ -51,7 +51,7 @@ export default function ActiveSessionPage() {
   const [pollChartModalId, setPollChartModalId] = useState<string | null>(null)
 
   // Launched quizzes state
-  const [launchedQuizzes, setLaunchedQuizzes] = useState<(SessionQuiz & { title?: string })[]>([])
+  const [launchedQuizzes, setLaunchedQuizzes] = useState<(SessionQuiz & { title?: string; isPoll?: boolean })[]>([])
   const [activeQuizData, setActiveQuizData] = useState<ActiveQuizData | null>(null)
 
   // View submissions modal
@@ -484,7 +484,7 @@ export default function ActiveSessionPage() {
         })
       }
       const sessionQuiz = await quizzesApi.launchQuiz(session.id, quiz.id)
-      setLaunchedQuizzes(prev => [...prev, { ...sessionQuiz, title: pollQuestion }])
+      setLaunchedQuizzes(prev => [...prev, { ...sessionQuiz, title: pollQuestion, isPoll: true }])
       setQuickPollOpen(false)
       setPollQuestion('')
       setPollOptions(['', ''])
@@ -656,12 +656,14 @@ export default function ActiveSessionPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setPollChartModalId(q.id)}
-                      className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-2 py-1 rounded hover:bg-zinc-50 transition-colors"
-                    >
-                      <ChevronRight className="w-3 h-3" /> Диаграмма
-                    </button>
+                    {q.isPoll && (
+                      <button
+                        onClick={() => setPollChartModalId(q.id)}
+                        className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-2 py-1 rounded hover:bg-zinc-50 transition-colors"
+                      >
+                        <ChevronRight className="w-3 h-3" /> Диаграмма
+                      </button>
+                    )}
                     <button
                       onClick={() => handleViewSubmissions(q.id, q.title || `Квиз #${idx + 1}`)}
                       className="flex items-center gap-1 text-xs text-zinc-600 hover:text-zinc-900 border border-zinc-200 px-2 py-1 rounded hover:bg-zinc-50 transition-colors"

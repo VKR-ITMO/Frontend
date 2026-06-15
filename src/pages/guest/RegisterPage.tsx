@@ -90,12 +90,17 @@ export default function RegisterPage() {
         </Button>
       </form>
 
-      <p className="text-sm text-zinc-400">
-        Уже есть аккаунт?{' '}
-        <Link to="/login" className="text-zinc-900 font-medium hover:underline">
-          Войти
+      <div className="flex flex-col items-center gap-2 text-sm">
+        <p className="text-zinc-400">
+          Уже есть аккаунт?{' '}
+          <Link to="/login" className="text-zinc-900 font-medium hover:underline">
+            Войти
+          </Link>
+        </p>
+        <Link to="/join" className="text-zinc-400 hover:text-zinc-600 transition-colors">
+          Войти как гость
         </Link>
-      </p>
+      </div>
     </div>
   )
 }
